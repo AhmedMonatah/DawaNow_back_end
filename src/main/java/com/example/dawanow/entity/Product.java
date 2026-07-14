@@ -28,24 +28,30 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 500)
     private String name;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(name = "arabic_name", length = 500)
+    private String arabicName;
+
+    @Column(name = "scientific_name", length = 1000)
+    private String scientificName;
+
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
-    @Column(name = "image_path", nullable = false)
-    private String imagePath;
+    @Column(name = "image_url", length = 1000)
+    private String imageUrl;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
-    @Column(nullable = false)
-    private String description;
-
-    @Column(nullable = false)
+    @Column(nullable = false, length = 500)
     private String company;
+
+    @Column(length = 100)
+    private String route;
 
     @OneToMany(mappedBy = "product")
     private List<OrderItem> orderItems = new ArrayList<>();

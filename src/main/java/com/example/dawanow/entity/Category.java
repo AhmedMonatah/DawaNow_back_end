@@ -27,9 +27,6 @@ public class Category {
     @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false)
-    private String description;
-
     @OneToMany(mappedBy = "category")
     private List<Product> products = new ArrayList<>();
 }

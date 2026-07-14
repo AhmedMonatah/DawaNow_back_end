@@ -1,14 +1,17 @@
 package com.example.dawanow.dtos.request;
 
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
 public record UpdateProductRequest(
         String name,
+        String arabicName,
+        String scientificName,
         @PositiveOrZero BigDecimal price,
-        String imagePath,
+        @Size(max = 1000) String imageUrl,
         Long categoryId,
-        String description,
-        String company
+        String company,
+        String route
 ) {
 }
