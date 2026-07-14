@@ -10,6 +10,7 @@ public record OrderResponse(
         Long userId,
         Long pharmacyId,
         Long pharmacistId,
+        Long offerId,
         BigDecimal totalPrice,
         Double deliveryLatitude,
         Double deliveryLongitude,

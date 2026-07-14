@@ -25,17 +25,26 @@ public class Pharmacy {
     private Long id;
 
     @Column(nullable = false)
+    private String name;
+
+    @Column(nullable = false)
     private Double latitude;
 
     @Column(nullable = false)
     private Double longitude;
 
+    @Column(name = "address")
+    private String address;
+
+    @Column(name = "phone_number")
+    private String phoneNumber;
+
     @OneToMany(mappedBy = "pharmacy")
     private List<Pharmacist> pharmacists = new ArrayList<>();
 
     @OneToMany(mappedBy = "pharmacy")
-    private List<MedicineRequest> requests = new ArrayList<>();
+    private List<Order> orders = new ArrayList<>();
 
     @OneToMany(mappedBy = "pharmacy")
-    private List<Order> orders = new ArrayList<>();
+    private List<PharmacyOffer> offers = new ArrayList<>();
 }

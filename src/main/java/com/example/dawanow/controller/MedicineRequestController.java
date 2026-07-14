@@ -1,7 +1,6 @@
 package com.example.dawanow.controller;
 
 import com.example.dawanow.dtos.request.CreateMedicineRequestRequest;
-import com.example.dawanow.dtos.request.UpdateMedicineRequestStatusRequest;
 import com.example.dawanow.dtos.response.ApiResponse;
 import com.example.dawanow.dtos.response.MedicineRequestResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
@@ -13,7 +12,6 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -51,27 +49,9 @@ public class MedicineRequestController {
         return ResponseEntity.ok(ApiResponse.success("Medicine requests fetched", medicineRequestService.getAllRequests(pageable)));
     }
 
-    @GetMapping("/pharmacy/{pharmacyId}")
-    @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
-    public ResponseEntity<ApiResponse<PaginatedResponse<MedicineRequestResponse>>> getPharmacyRequests(
-            @PathVariable Long pharmacyId,
-            @PageableDefault(size = 20) Pageable pageable
-    ) {
-        return ResponseEntity.ok(ApiResponse.success("Pharmacy requests fetched", medicineRequestService.getPharmacyRequests(pharmacyId, pageable)));
-    }
-
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'PHARMACIST', 'ADMIN')")
     public ResponseEntity<ApiResponse<MedicineRequestResponse>> getRequestById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Medicine request fetched", medicineRequestService.getRequestById(id)));
-    }
-
-    @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
-    public ResponseEntity<ApiResponse<MedicineRequestResponse>> updateRequestStatus(
-            @PathVariable Long id,
-            @Valid @RequestBody UpdateMedicineRequestStatusRequest request
-    ) {
-        return ResponseEntity.ok(ApiResponse.success("Medicine request status updated", medicineRequestService.updateRequestStatus(id, request)));
     }
 }
