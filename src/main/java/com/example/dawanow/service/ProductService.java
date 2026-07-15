@@ -7,6 +7,7 @@ import com.example.dawanow.dtos.response.ProductResponse;
 import com.example.dawanow.entity.Category;
 import com.example.dawanow.entity.Product;
 import com.example.dawanow.exception.ResourceNotFoundException;
+import com.example.dawanow.mapper.ProductMapper;
 import com.example.dawanow.repo.CategoryRepository;
 import com.example.dawanow.repo.ProductRepository;
 import java.math.BigDecimal;
@@ -34,10 +35,11 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final ProductMapper productMapper;
 
     @Transactional(readOnly = true)
     public PaginatedResponse<ProductResponse> getAllProducts(Pageable pageable) {
-        return PaginatedResponse.from(productRepository.findAll(validateSort(pageable)).map(this::toResponse));
+        return PaginatedResponse.from(productRepository.findAll(validateSort(pageable)).map(productMapper::toResponse));
     }
 
     @Transactional(readOnly = true)
@@ -54,7 +56,7 @@ public class ProductService {
                         searchTerm,
                         validateSort(pageable)
                 )
-                .map(this::toResponse));
+                .map(productMapper::toResponse));
     }
 
     @Transactional(readOnly = true)
@@ -64,13 +66,13 @@ public class ProductService {
         }
 
         return PaginatedResponse.from(
-                productRepository.findByCategoryId(categoryId, validateSort(pageable)).map(this::toResponse)
+                productRepository.findByCategoryId(categoryId, validateSort(pageable)).map(productMapper::toResponse)
         );
     }
 
     @Transactional(readOnly = true)
     public ProductResponse getProductById(Long id) {
-        return toResponse(findProductById(id));
+        return productMapper.toResponse(findProductById(id));
     }
 
     public ProductResponse createProduct(CreateProductRequest request) {
@@ -86,7 +88,7 @@ public class ProductService {
         product.setCompany(requireText(request.company(), "Product company"));
         product.setRoute(requireText(request.route(), "Product route"));
 
-        return toResponse(productRepository.save(product));
+        return productMapper.toResponse(productRepository.save(product));
     }
 
     public ProductResponse updateProduct(Long id, UpdateProductRequest request) {
@@ -117,7 +119,7 @@ public class ProductService {
             product.setRoute(requireText(request.route(), "Product route"));
         }
 
-        return toResponse(product);
+        return productMapper.toResponse(product);
     }
 
     public void deleteProduct(Long id) {
@@ -133,21 +135,6 @@ public class ProductService {
     private Category findCategoryById(Long id) {
         return categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
-    }
-
-    private ProductResponse toResponse(Product product) {
-        return new ProductResponse(
-                product.getId(),
-                product.getName(),
-                product.getArabicName(),
-                product.getScientificName(),
-                product.getPrice(),
-                product.getImageUrl(),
-                product.getCategory().getId(),
-                product.getCategory().getName(),
-                product.getCompany(),
-                product.getRoute()
-        );
     }
 
     private String requireText(String value, String fieldName) {

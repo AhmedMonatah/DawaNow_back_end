@@ -25,4 +25,5 @@ public class Pharmacist extends User {
 
     @OneToMany(mappedBy = "pharmacist")
     private List<Order> orders = new ArrayList<>();
+
 }

@@ -6,6 +6,7 @@ import com.example.dawanow.dtos.response.CategoryResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.entity.Category;
 import com.example.dawanow.exception.ResourceNotFoundException;
+import com.example.dawanow.mapper.CategoryMapper;
 import com.example.dawanow.repo.CategoryRepository;
 import com.example.dawanow.repo.ProductRepository;
 import java.util.Locale;
@@ -22,15 +23,16 @@ public class CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
+    private final CategoryMapper categoryMapper;
 
     @Transactional(readOnly = true)
     public PaginatedResponse<CategoryResponse> getAllCategories(Pageable pageable) {
-        return PaginatedResponse.from(categoryRepository.findAll(pageable).map(this::toResponse));
+        return PaginatedResponse.from(categoryRepository.findAll(pageable).map(categoryMapper::toResponse));
     }
 
     @Transactional(readOnly = true)
     public CategoryResponse getCategoryById(Long id) {
-        return toResponse(findCategoryById(id));
+        return categoryMapper.toResponse(findCategoryById(id));
     }
 
     public CategoryResponse createCategory(CreateCategoryRequest request) {
@@ -40,7 +42,7 @@ public class CategoryService {
         Category category = new Category();
         category.setName(name);
 
-        return toResponse(categoryRepository.save(category));
+        return categoryMapper.toResponse(categoryRepository.save(category));
     }
 
     public CategoryResponse updateCategory(Long id, UpdateCategoryRequest request) {
@@ -52,7 +54,7 @@ public class CategoryService {
             category.setName(name);
         }
 
-        return toResponse(category);
+        return categoryMapper.toResponse(category);
     }
 
     public void deleteCategory(Long id) {
@@ -85,7 +87,4 @@ public class CategoryService {
         return name.trim().toUpperCase(Locale.ROOT);
     }
 
-    private CategoryResponse toResponse(Category category) {
-        return new CategoryResponse(category.getId(), category.getName());
-    }
 }

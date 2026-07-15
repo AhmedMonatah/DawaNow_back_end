@@ -2,30 +2,35 @@ package com.example.dawanow.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "pharmacy")
+@Table(name = "pharmacy_creation_request")
 @Getter
 @Setter
 @NoArgsConstructor
-public class Pharmacy {
+public class PharmacyCreationRequest {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "pharmacist_id", nullable = false)
+    private Pharmacist pharmacist;
 
     @Column(nullable = false)
     private String name;
@@ -36,7 +41,6 @@ public class Pharmacy {
     @Column(nullable = false)
     private Double longitude;
 
-    @Column(name = "address")
     private String address;
 
     @Column(name = "phone_number")
@@ -48,17 +52,20 @@ public class Pharmacy {
     @Column(name = "license_document_path", nullable = false)
     private String licenseDocumentPath;
 
-    /** The pharmacist who administers this pharmacy; not a platform ADMIN user. */
+    @Enumerated(EnumType.STRING)
+    private PharmacyCreationRequestStatus status = PharmacyCreationRequestStatus.PENDING;
+
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "admin_pharmacist_id", nullable = false)
-    private Pharmacist adminPharmacist;
+    @JoinColumn(name = "reviewed_by")
+    private User reviewedBy;
 
-    @OneToMany(mappedBy = "pharmacy")
-    private List<Pharmacist> pharmacists = new ArrayList<>();
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_pharmacy_id")
+    private Pharmacy approvedPharmacy;
 
-    @OneToMany(mappedBy = "pharmacy")
-    private List<Order> orders = new ArrayList<>();
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt = Instant.now();
 
-    @OneToMany(mappedBy = "pharmacy")
-    private List<PharmacyOffer> offers = new ArrayList<>();
+    @Column(name = "updated_at")
+    private Instant updatedAt;
 }

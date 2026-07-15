@@ -5,6 +5,7 @@ public record PharmacistResponse(
         String email,
         String firstName,
         String lastName,
-        Long pharmacyId
+        Long pharmacyId,
+        boolean pharmacyAdmin
 ) {
 }

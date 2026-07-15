@@ -44,6 +44,9 @@ public class User {
     @Column(name = "last_name", nullable = false)
     private String lastName;
 
+    @Column(name = "phone_number", nullable = false, unique = true)
+    private String phoneNumber;
+
     @Column(nullable = false)
     private String password;
 
