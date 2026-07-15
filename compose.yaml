@@ -1,0 +1,41 @@
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-dawanow}
+      MYSQL_USER: ${MYSQL_USER:-dawanow}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dawanow}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  app:
+    build:
+      context: .
+    environment:
+      SERVER_PORT: 8080
+      DB_URL: jdbc:mysql://db:3306/${MYSQL_DATABASE:-dawanow}
+      DB_USERNAME: ${MYSQL_USER:-dawanow}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-dawanow}
+      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
+      JWT_SECRET: ${JWT_SECRET:-change-this-before-production}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
