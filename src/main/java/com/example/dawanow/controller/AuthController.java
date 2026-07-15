@@ -1,7 +1,6 @@
 package com.example.dawanow.controller;
 
-import com.example.dawanow.dtos.request.LoginRequest;
-import com.example.dawanow.dtos.request.RegisterRequest;
+import com.example.dawanow.dtos.request.*;
 import com.example.dawanow.dtos.response.ApiResponse;
 import com.example.dawanow.dtos.response.AuthResponse;
 import com.example.dawanow.service.AuthService;
@@ -40,15 +39,15 @@ public class AuthController {
                     description = "Request validation failed or email/phone already in use"
             )
     })
-    public ResponseEntity<ApiResponse<AuthResponse>> register(
+    public ResponseEntity<ApiResponse<Void>> register(
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "Registration details including email, password, and role",
                     required = true
             )
             @Valid @RequestBody RegisterRequest request
     ) {
-        AuthResponse response = authService.register(request);
-        return ResponseEntity.ok(ApiResponse.success("Registered successfully", response));
+        authService.register(request);
+        return ResponseEntity.ok(ApiResponse.success("Registration initiated successfully."));
     }
 
     @PostMapping("/login")
@@ -76,5 +75,85 @@ public class AuthController {
     ) {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(ApiResponse.success("Logged in successfully", response));
+    }
+    @PostMapping("/refresh")
+    @Operation(
+            summary = "Refresh access token",
+            description = "Public endpoint. Uses a valid refresh token to generate a fresh, short-lived access token and a rotated refresh token."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Tokens refreshed successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Invalid, expired, or tampered refresh token"
+            )
+    })
+    public ResponseEntity<ApiResponse<AuthResponse>> refresh(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "The refresh token payload",
+                    required = true
+            )
+            @Valid @RequestBody RefreshTokenRequest request
+    ) {
+        AuthResponse response = authService.refresh(request);
+        return ResponseEntity.ok(ApiResponse.success("Refreshed successfully", response));
+    }
+
+    @PostMapping("/verify")
+    @Operation(
+            summary = "Verify account with OTP",
+            description = "Public endpoint. Verifies the user's pending registration using the 6-digit OTP sent to their email. On success, finalizes registration in the database and returns access/refresh tokens."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Account verified successfully; session tokens returned"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid OTP, expired registration session, or account already verified"
+            )
+    })
+    public ResponseEntity<ApiResponse<AuthResponse>> verify(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Email and the matching 6-digit OTP code",
+                    required = true
+            )
+            @Valid @RequestBody VerifyRequest request
+    ) {
+        AuthResponse response = authService.verify(request);
+        return ResponseEntity.ok(ApiResponse.success("Verified successfully", response));
+    }
+
+    @PostMapping("/logout")
+    @Operation(
+            summary = "Log out user",
+            description = "Public endpoint. Revokes and invalidates the provided refresh token session to prevent future token renewals."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Logged out successfully; session invalidated"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Token invalid, already blacklisted, or not found"
+            )
+    })
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "The refresh token to be invalidated",
+                    required = true
+            )
+            @Valid @RequestBody LogoutRequest request
+    ) {
+        authService.logout(request);
+        return ResponseEntity.ok(ApiResponse.success("Logged out successfully"));
     }
 }
