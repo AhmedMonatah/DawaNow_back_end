@@ -4,7 +4,10 @@ import com.example.dawanow.dtos.request.CreatePharmacyRequest;
 import com.example.dawanow.dtos.request.UpdatePharmacyRequest;
 import com.example.dawanow.dtos.response.ApiResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
+import com.example.dawanow.dtos.response.PharmacyMineResponse;
 import com.example.dawanow.dtos.response.PharmacyResponse;
+import com.example.dawanow.entity.Pharmacist;
+import com.example.dawanow.entity.User;
 import com.example.dawanow.service.PharmacyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -17,14 +20,11 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/pharmacies")
@@ -60,6 +60,36 @@ public class PharmacyController {
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
         return ResponseEntity.ok(ApiResponse.success("Pharmacies fetched", pharmacyService.getAllPharmacies(pageable)));
+    }
+
+    @GetMapping("/mine")
+    @PreAuthorize("hasRole('PHARMACIST')")
+    @Operation(
+            summary = "Get my pharmacy",
+            description = "Returns the pharmacy the current pharmacist is assigned to, along with whether they are the admin.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Pharmacy fetched successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "Pharmacist role is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Pharmacist not assigned to any pharmacy"
+            )
+    })
+    public ResponseEntity<ApiResponse<PharmacyMineResponse>> getMyPharmacy() {
+        return ResponseEntity.ok(ApiResponse.success("Pharmacy fetched", pharmacyService.getMyPharmacy()));
     }
 
     @GetMapping("/{id}")
@@ -120,6 +150,10 @@ public class PharmacyController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "403",
                     description = "Pharmacist role is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "413",
+                    description = "Uploaded license file is too large"
             )
     })
     public ResponseEntity<ApiResponse<PharmacyResponse>> createPharmacy(
@@ -127,9 +161,10 @@ public class PharmacyController {
                     description = "Pharmacy details",
                     required = true
             )
-            @Valid @RequestBody CreatePharmacyRequest request
+            @Valid @RequestPart("pharmacyRequest") CreatePharmacyRequest pharmacyRequest,
+            @RequestPart("license") MultipartFile license
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Pharmacy created", pharmacyService.createPharmacy(request)));
+        return ResponseEntity.ok(ApiResponse.success("Pharmacy created", pharmacyService.createPharmacy(pharmacyRequest, license)));
     }
 
     @PutMapping("/{id}")
@@ -172,5 +207,39 @@ public class PharmacyController {
             @Valid @RequestBody UpdatePharmacyRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.success("Pharmacy updated", pharmacyService.updatePharmacy(id, request)));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
+    @Operation(
+            summary = "Delete a pharmacy",
+            description = "Platform admin or pharmacy admin only. Permanently deletes the pharmacy and unassigns all pharmacists.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Pharmacy deleted successfully; response data is null"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "Only the platform admin or pharmacy admin can delete the pharmacy"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Pharmacy not found"
+            )
+    })
+    public ResponseEntity<ApiResponse<Void>> deletePharmacy(
+            @Parameter(description = "Pharmacy ID", example = "1", required = true)
+            @PathVariable Long id
+    ) {
+        pharmacyService.deletePharmacy(id);
+        return ResponseEntity.ok(ApiResponse.success("Pharmacy deleted"));
     }
 }

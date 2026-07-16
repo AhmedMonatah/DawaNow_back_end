@@ -12,6 +12,7 @@ import com.example.dawanow.repo.PharmacistRepository;
 import com.example.dawanow.repo.PharmacyInvitationRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,11 +26,12 @@ public class PharmacyInvitationService {
     private final CurrentPharmacistProvider currentPharmacistProvider;
     private final PharmacyInvitationMapper invitationMapper;
 
+    @Transactional
     public PharmacyInvitationResponse invite(Long pharmacyId, CreatePharmacyInvitationRequest request) {
         Pharmacy pharmacy = pharmacyService.findPharmacy(pharmacyId);
         pharmacyService.requireCurrentAdmin(pharmacy);
-        Pharmacist pharmacist = pharmacistRepository.findById(request.pharmacistId())
-                .orElseThrow(() -> new ResourceNotFoundException("Pharmacist not found"));
+        Pharmacist pharmacist = pharmacistRepository.findByEmail(request.email())
+                .orElseThrow(() -> new ResourceNotFoundException("No pharmacist found with email: " + request.email()));
         pharmacyService.ensureNotAssignedToAnyPharmacy(pharmacist);
         invitationRepository.findByPharmacyIdAndPharmacistIdAndStatus(pharmacyId, pharmacist.getId(), PharmacyInvitationStatus.PENDING)
                 .ifPresent(invitation -> { throw new IllegalArgumentException("A pending invitation already exists for this pharmacist"); });
@@ -62,7 +64,7 @@ public class PharmacyInvitationService {
             throw new IllegalArgumentException("You are not associated with any pharmacy");
         }
         if (!pharmacy.getAdminPharmacist().getId().equals(current.getId())) {
-            throw new org.springframework.security.access.AccessDeniedException("Only the pharmacy admin can view pending invitations");
+            throw new AccessDeniedException("Only the pharmacy admin can view pending invitations");
         }
         return invitationRepository.findByPharmacyIdAndStatus(pharmacy.getId(), PharmacyInvitationStatus.PENDING)
                 .stream().map(invitationMapper::toResponse).toList();

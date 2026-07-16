@@ -79,6 +79,7 @@ public class ProductController {
                             examples = @ExampleObject(value = INVALID_SORT_EXAMPLE)
                     )
             )
+
     })
     public ResponseEntity<ApiResponse<PaginatedResponse<ProductResponse>>> getAllProducts(
             @ParameterObject @PageableDefault(size = 20, sort = "name") Pageable pageable

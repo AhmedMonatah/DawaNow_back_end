@@ -58,8 +58,8 @@ public class PharmacyInvitationController {
 
     @PostMapping("/pharmacy/{pharmacyId}")
     @Operation(
-            summary = "Invite a pharmacist",
-            description = "Pharmacy admin invites another pharmacist to join the pharmacy. "
+            summary = "Invite a pharmacist by email",
+            description = "Pharmacy admin invites another pharmacist to join the pharmacy by their email address. "
                     + "The invited pharmacist must not already belong to a pharmacy.",
             security = @SecurityRequirement(name = "basicAuth")
     )

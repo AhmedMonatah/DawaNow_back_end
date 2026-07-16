@@ -5,6 +5,7 @@ import java.time.Instant;
 
 public record PharmacyInvitationResponse(
         Long id, Long pharmacyId, String pharmacyName, Long pharmacistId,
+        String pharmacistFirstName, String pharmacistLastName,
         PharmacyInvitationStatus status, Instant createdAt
 ) {
 }
