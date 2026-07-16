@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
-    private final CurrentPharmacistProvider currentPharmacistProvider;
+    private final CurrentUserProvider currentUserProvider;
     private final CustomerMapper customerMapper;
 
     @Transactional(readOnly = true)
@@ -55,7 +55,7 @@ public class CustomerService {
     }
 
     private Customer getCurrentCustomerEntity() {
-        User user = currentPharmacistProvider.getCurrentUser();
+        User user = currentUserProvider.get();
         if (!(user instanceof Customer customer)) {
             throw new AccessDeniedException("A customer account is required");
         }

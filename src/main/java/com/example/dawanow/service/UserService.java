@@ -18,12 +18,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
     private final UserRepository userRepository;
-    private final CurrentPharmacistProvider currentPharmacistProvider;
+    private final CurrentUserProvider currentUserProvider;
     private final UserMapper userMapper;
 
     @Transactional(readOnly = true)
     public UserResponse getCurrentUser() {
-        return userMapper.toResponse(currentPharmacistProvider.getCurrentUser());
+        return userMapper.toResponse(currentUserProvider.get());
     }
 
     @Transactional(readOnly = true)

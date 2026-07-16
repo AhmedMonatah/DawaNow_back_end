@@ -31,6 +31,7 @@ public class PharmacyCreationRequestService {
 
     private final PharmacyCreationRequestRepository requestRepository;
     private final PharmacyService pharmacyService;
+    private final CurrentUserProvider currentUserProvider;
     private final CurrentPharmacistProvider currentPharmacistProvider;
     private final PharmacyCreationRequestMapper requestMapper;
 
@@ -105,7 +106,7 @@ public class PharmacyCreationRequestService {
 
         pharmacist.setPharmacy(pharmacy);
 
-        User admin = currentPharmacistProvider.getCurrentUser();
+        User admin = currentUserProvider.get();
         request.setStatus(PharmacyCreationRequestStatus.APPROVED);
         request.setReviewedBy(admin);
         request.setApprovedPharmacy(pharmacy);
@@ -118,7 +119,7 @@ public class PharmacyCreationRequestService {
         if (request.getStatus() != PharmacyCreationRequestStatus.PENDING) {
             throw new IllegalArgumentException("Only a pending request can be rejected");
         }
-        User admin = currentPharmacistProvider.getCurrentUser();
+        User admin = currentUserProvider.get();
         request.setStatus(PharmacyCreationRequestStatus.REJECTED);
         request.setReviewedBy(admin);
         request.setUpdatedAt(Instant.now());

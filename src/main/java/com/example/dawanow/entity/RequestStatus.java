@@ -5,5 +5,4 @@ public enum RequestStatus {
     CANCELLED,
     FULFILLED,
     UNFULFILLED  // max radius reached, nothing matched
-
 }

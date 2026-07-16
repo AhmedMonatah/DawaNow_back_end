@@ -45,7 +45,7 @@ public class Order {
     private Pharmacist pharmacist;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "offer_id", nullable = false)
+    @JoinColumn(name = "offer_id", nullable = false, unique = true)
     private PharmacyOffer offer;
 
     @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
