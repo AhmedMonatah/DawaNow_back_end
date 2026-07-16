@@ -38,7 +38,7 @@ public class ProductDataInitializer implements ApplicationRunner {
     private static final String DATASET_PATH = "data/products.tsv";
     private static final String ARABIC_TRANSLATIONS_PATH = "data/product_translations_ar.tsv";
     private static final String EXPECTED_HEADER =
-            "name\tarabicName\tscientificName\tprice\timageUrl\tcategoryName\tcompany\troute";
+            "name\tscientificName\tprice\timageUrl\tcategoryName\tcompany\troute";
     private static final String EXPECTED_TRANSLATION_HEADER =
             "productName\tprice\tname\tscientificName\tcategoryName\tcompany\troute";
     private static final String ARABIC = "ar";
@@ -73,7 +73,6 @@ public class ProductDataInitializer implements ApplicationRunner {
             List<Product> importedProducts = seeds.stream()
                     .map(seed -> toProduct(
                             seed,
-                            translationSeeds.get(productKey(seed.name(), seed.price())),
                             categories.get(categoryKey(seed.categoryName()))
                     ))
                     .toList();
@@ -91,7 +90,6 @@ public class ProductDataInitializer implements ApplicationRunner {
                             "Existing product table does not contain dataset product: " + seed.name()
                     );
                 }
-                product.setArabicName(translationSeeds.get(key).name());
             }
             log.info("Product import skipped because the product table is not empty");
         }
@@ -170,26 +168,24 @@ public class ProductDataInitializer implements ApplicationRunner {
 
     private ProductSeed parseLine(String line, int lineNumber) {
         String[] values = line.split("\t", -1);
-        if (values.length != 8) {
+        if (values.length != 7) {
             throw new IllegalStateException("Invalid product dataset row at line " + lineNumber);
         }
 
         String name = required(values[0], "name", 500, lineNumber);
-        String arabicName = required(values[1], "arabicName", 500, lineNumber);
-        String scientificName = required(values[2], "scientificName", 1000, lineNumber);
-        BigDecimal price = parsePrice(values[3], lineNumber);
-        String imageUrl = required(values[4], "imageUrl", 1000, lineNumber);
+        String scientificName = required(values[1], "scientificName", 1000, lineNumber);
+        BigDecimal price = parsePrice(values[2], lineNumber);
+        String imageUrl = required(values[3], "imageUrl", 1000, lineNumber);
         validateImageUrl(imageUrl, lineNumber);
-        String categoryName = required(values[5], "categoryName", 255, lineNumber);
-        String company = required(values[6], "company", 500, lineNumber);
-        String route = required(values[7], "route", 100, lineNumber);
+        String categoryName = required(values[4], "categoryName", 255, lineNumber);
+        String company = required(values[5], "company", 500, lineNumber);
+        String route = required(values[6], "route", 100, lineNumber);
         if (!VALID_ROUTES.contains(route)) {
             throw invalidField("route", lineNumber);
         }
 
         return new ProductSeed(
                 name,
-                arabicName,
                 scientificName,
                 price,
                 imageUrl,
@@ -261,14 +257,9 @@ public class ProductDataInitializer implements ApplicationRunner {
         return category;
     }
 
-    private Product toProduct(
-            ProductSeed seed,
-            ProductTranslationSeed translation,
-            Category category
-    ) {
+    private Product toProduct(ProductSeed seed, Category category) {
         Product product = new Product();
         product.setName(seed.name());
-        product.setArabicName(translation.name());
         product.setScientificName(seed.scientificName());
         product.setPrice(seed.price());
         product.setImageUrl(seed.imageUrl());
@@ -297,7 +288,7 @@ public class ProductDataInitializer implements ApplicationRunner {
             Map<ProductKey, Product> products
     ) {
         Map<Long, ProductTranslation> existingTranslations = new HashMap<>();
-        for (ProductTranslation translation : productTranslationRepository.findAllByLanguage(ARABIC)) {
+        for (ProductTranslation translation : productTranslationRepository.findAllByLang(ARABIC)) {
             if (existingTranslations.putIfAbsent(translation.getProduct().getId(), translation) != null) {
                 throw new IllegalStateException(
                         "Duplicate Arabic translation for product ID " + translation.getProduct().getId()
@@ -314,7 +305,7 @@ public class ProductDataInitializer implements ApplicationRunner {
             if (translation == null) {
                 translation = new ProductTranslation();
                 translation.setProduct(product);
-                translation.setLanguage(ARABIC);
+                translation.setLang(ARABIC);
             }
 
             translation.setName(seed.name());
@@ -384,7 +375,6 @@ public class ProductDataInitializer implements ApplicationRunner {
 
     private record ProductSeed(
             String name,
-            String arabicName,
             String scientificName,
             BigDecimal price,
             String imageUrl,

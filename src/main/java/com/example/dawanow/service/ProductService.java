@@ -35,7 +35,6 @@ public class ProductService {
     private static final Set<String> SORTABLE_FIELDS = Set.of(
             "id",
             "name",
-            "arabicName",
             "scientificName",
             "price",
             "company",
@@ -44,7 +43,6 @@ public class ProductService {
     private static final Map<String, String> ARABIC_SORT_FIELDS = Map.of(
             "id", "product.id",
             "name", "name",
-            "arabicName", "name",
             "scientificName", "scientificName",
             "price", "product.price",
             "company", "company",
@@ -63,7 +61,7 @@ public class ProductService {
 
         if (ARABIC.equals(language)) {
             Page<ProductResponse> products = productTranslationRepository
-                    .findByLanguage(ARABIC, toArabicPageable(validatedPageable))
+                    .findByLang(ARABIC, toArabicPageable(validatedPageable))
                     .map(productMapper::toResponse);
             return PaginatedResponse.from(products);
         }
@@ -93,8 +91,7 @@ public class ProductService {
         }
 
         return PaginatedResponse.from(productRepository
-                .findByNameContainingIgnoreCaseOrArabicNameContainingIgnoreCaseOrScientificNameContainingIgnoreCase(
-                        searchTerm,
+                .findByNameContainingIgnoreCaseOrScientificNameContainingIgnoreCase(
                         searchTerm,
                         searchTerm,
                         validatedPageable
@@ -116,7 +113,7 @@ public class ProductService {
         Pageable validatedPageable = validateSort(pageable);
         if (ARABIC.equals(language)) {
             return PaginatedResponse.from(
-                    productTranslationRepository.findByLanguageAndProductCategoryId(
+                    productTranslationRepository.findByLangAndProductCategoryId(
                             ARABIC,
                             categoryId,
                             toArabicPageable(validatedPageable)
@@ -143,7 +140,6 @@ public class ProductService {
 
         Product product = new Product();
         product.setName(requireText(request.name(), "Product name"));
-        product.setArabicName(requireText(request.arabicName(), "Arabic name"));
         product.setScientificName(requireText(request.scientificName(), "Scientific name"));
         product.setPrice(requirePositivePrice(request.price()));
         product.setImageUrl(requireText(request.imageUrl(), "Image URL"));
@@ -154,16 +150,16 @@ public class ProductService {
         Product savedProduct = productRepository.save(product);
         ProductTranslation translation = new ProductTranslation();
         translation.setProduct(savedProduct);
-        translation.setLanguage(ARABIC);
-        translation.setName(requireText(request.arabicName(), "Arabic name"));
+        translation.setLang(ARABIC);
+        translation.setName(requireText(request.translatedName(), "Translated product name"));
         translation.setScientificName(
-                requireText(request.arabicScientificName(), "Arabic scientific name")
+                requireText(request.translatedScientificName(), "Translated scientific name")
         );
         translation.setCategoryName(
-                requireText(request.arabicCategoryName(), "Arabic category name")
+                requireText(request.translatedCategoryName(), "Translated category name")
         );
-        translation.setCompany(requireText(request.arabicCompany(), "Arabic company"));
-        translation.setRoute(requireText(request.arabicRoute(), "Arabic route"));
+        translation.setCompany(requireText(request.translatedCompany(), "Translated company"));
+        translation.setRoute(requireText(request.translatedRoute(), "Translated route"));
         productTranslationRepository.save(translation);
 
         return productMapper.toResponse(savedProduct);
@@ -174,9 +170,6 @@ public class ProductService {
 
         if (request.name() != null) {
             product.setName(requireText(request.name(), "Product name"));
-        }
-        if (request.arabicName() != null) {
-            product.setArabicName(requireText(request.arabicName(), "Arabic name"));
         }
         if (request.scientificName() != null) {
             product.setScientificName(requireText(request.scientificName(), "Scientific name"));
@@ -217,40 +210,38 @@ public class ProductService {
     }
 
     private ProductTranslation findArabicTranslation(Long productId) {
-        return productTranslationRepository.findByProductIdAndLanguage(productId, ARABIC)
+        return productTranslationRepository.findByProductIdAndLang(productId, ARABIC)
                 .orElseThrow(() -> new ResourceNotFoundException("Arabic product translation not found"));
     }
 
     private void updateArabicTranslation(Product product, UpdateProductRequest request) {
-        if (request.arabicName() == null
-                && request.arabicScientificName() == null
-                && request.arabicCategoryName() == null
-                && request.arabicCompany() == null
-                && request.arabicRoute() == null) {
+        if (request.translatedName() == null
+                && request.translatedScientificName() == null
+                && request.translatedCategoryName() == null
+                && request.translatedCompany() == null
+                && request.translatedRoute() == null) {
             return;
         }
 
         ProductTranslation translation = findArabicTranslation(product.getId());
-        if (request.arabicName() != null) {
-            String arabicName = requireText(request.arabicName(), "Arabic name");
-            product.setArabicName(arabicName);
-            translation.setName(arabicName);
+        if (request.translatedName() != null) {
+            translation.setName(requireText(request.translatedName(), "Translated product name"));
         }
-        if (request.arabicScientificName() != null) {
+        if (request.translatedScientificName() != null) {
             translation.setScientificName(
-                    requireText(request.arabicScientificName(), "Arabic scientific name")
+                    requireText(request.translatedScientificName(), "Translated scientific name")
             );
         }
-        if (request.arabicCategoryName() != null) {
+        if (request.translatedCategoryName() != null) {
             translation.setCategoryName(
-                    requireText(request.arabicCategoryName(), "Arabic category name")
+                    requireText(request.translatedCategoryName(), "Translated category name")
             );
         }
-        if (request.arabicCompany() != null) {
-            translation.setCompany(requireText(request.arabicCompany(), "Arabic company"));
+        if (request.translatedCompany() != null) {
+            translation.setCompany(requireText(request.translatedCompany(), "Translated company"));
         }
-        if (request.arabicRoute() != null) {
-            translation.setRoute(requireText(request.arabicRoute(), "Arabic route"));
+        if (request.translatedRoute() != null) {
+            translation.setRoute(requireText(request.translatedRoute(), "Translated route"));
         }
     }
 

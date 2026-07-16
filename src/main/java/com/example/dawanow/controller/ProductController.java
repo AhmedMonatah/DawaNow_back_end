@@ -61,7 +61,8 @@ public class ProductController {
             summary = "Get all products",
             description = "Public endpoint that returns products in a paginated response. "
                     + "Set lang=ar to return Arabic product data; the default language is English. "
-                    + "Use page and size for pagination. Sort supports id, name, arabicName, scientificName, "
+                    + "Name, scientific name, category, company, and route use their translations. "
+                    + "Use page and size for pagination. Sort supports id, name, scientificName, "
                     + "price, company, and route with asc or desc, for example sort=price,desc. "
                     + "Repeat sort to order by multiple fields."
     )
@@ -132,7 +133,7 @@ public class ProductController {
     @Operation(
             summary = "Search products",
             description = "Public endpoint that searches product names and scientific names. With lang=ar, "
-                    + "the Arabic name, scientific name, category, company, and route translations are searched. "
+                    + "the translated name, scientific name, category, company, and route are searched. "
                     + "A missing or blank keyword returns all products. Results are paginated and support the same "
                     + "sort fields as the get-all endpoint."
     )
@@ -154,7 +155,7 @@ public class ProductController {
     })
     public ResponseEntity<ApiResponse<PaginatedResponse<ProductResponse>>> searchProducts(
             @Parameter(
-                    description = "Text matched against product, Arabic, and scientific names",
+                    description = "Text matched against the localized product name and English product details",
                     example = "Panadol"
             )
             @RequestParam(required = false) String keyword,
@@ -218,7 +219,7 @@ public class ProductController {
     @Operation(
             summary = "Create a product",
             description = "Admin only. Creates a medicine product and links it to an existing category. "
-                    + "English and Arabic display fields are required so both language versions remain complete. "
+                    + "English product fields and their translated display values are required. "
                     + "The route must be one of EAR, EFF, EYE, INJECTION, MOUTH, ORAL.LIQUID, ORAL.SOLID, "
                     + "RECTAL, SPRAY, or TOPICAL.",
             security = @SecurityRequirement(name = "basicAuth")
@@ -271,7 +272,7 @@ public class ProductController {
     @Operation(
             summary = "Update a product",
             description = "Admin only. Partially updates a product; omitted fields keep their current values. "
-                    + "Arabic fields update the product's Arabic translation. "
+                    + "Translated fields update the product's Arabic translation. "
                     + "When categoryId is supplied, it must identify an existing category.",
             security = @SecurityRequirement(name = "basicAuth")
     )

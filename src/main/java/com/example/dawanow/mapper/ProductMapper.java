@@ -15,7 +15,6 @@ public interface ProductMapper {
 
     @Mapping(target = "id", source = "product.id")
     @Mapping(target = "name", source = "name")
-    @Mapping(target = "arabicName", source = "name")
     @Mapping(target = "scientificName", source = "scientificName")
     @Mapping(target = "price", source = "product.price")
     @Mapping(target = "imageUrl", source = "product.imageUrl")

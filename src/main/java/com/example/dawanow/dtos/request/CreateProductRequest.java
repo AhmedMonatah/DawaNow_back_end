@@ -10,18 +10,18 @@ import java.math.BigDecimal;
 
 public record CreateProductRequest(
         @NotBlank @Size(max = 500) String name,
-        @NotBlank @Size(max = 500) String arabicName,
+        @NotBlank @Size(max = 500) String translatedName,
         @NotBlank @Size(max = 1000) String scientificName,
-        @NotBlank @Size(max = 1000) String arabicScientificName,
+        @NotBlank @Size(max = 1000) String translatedScientificName,
         @NotNull @Positive @Digits(integer = 10, fraction = 2) BigDecimal price,
         @NotBlank @Size(max = 1000) @Pattern(regexp = "https://\\S+") String imageUrl,
         @NotNull @Positive Long categoryId,
-        @NotBlank @Size(max = 255) String arabicCategoryName,
+        @NotBlank @Size(max = 255) String translatedCategoryName,
         @NotBlank @Size(max = 500) String company,
-        @NotBlank @Size(max = 500) String arabicCompany,
+        @NotBlank @Size(max = 500) String translatedCompany,
         @NotBlank @Size(max = 100) @Pattern(
                 regexp = "EAR|EFF|EYE|INJECTION|MOUTH|ORAL\\.LIQUID|ORAL\\.SOLID|RECTAL|SPRAY|TOPICAL"
         ) String route,
-        @NotBlank @Size(max = 100) String arabicRoute
+        @NotBlank @Size(max = 100) String translatedRoute
 ) {
 }

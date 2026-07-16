@@ -76,7 +76,7 @@ class ProductDataInitializerTest {
     void importsProductDataset() {
         List<Product> products = productRepository.findAll();
         List<Category> categories = categoryRepository.findAll();
-        List<ProductTranslation> translations = productTranslationRepository.findAllByLanguage("ar");
+        List<ProductTranslation> translations = productTranslationRepository.findAllByLang("ar");
 
         assertThat(products).hasSize(798);
         assertThat(categories).hasSize(226);
@@ -99,7 +99,6 @@ class ProductDataInitializerTest {
                 .hasSize(categories.size());
         assertThat(products).allSatisfy(product -> {
             assertThat(product.getName()).isNotBlank();
-            assertThat(product.getArabicName()).isNotBlank();
             assertThat(product.getScientificName()).isNotBlank();
             assertThat(product.getPrice()).isPositive();
             assertThat(product.getImageUrl()).startsWith("https://");
@@ -110,7 +109,7 @@ class ProductDataInitializerTest {
         });
         assertThat(translations).allSatisfy(translation -> {
             assertThat(translation.getProduct()).isNotNull();
-            assertThat(translation.getLanguage()).isEqualTo("ar");
+            assertThat(translation.getLang()).isEqualTo("ar");
             assertThat(translation.getName()).containsPattern(ARABIC_TEXT);
             assertThat(translation.getScientificName()).containsPattern(ARABIC_TEXT);
             assertThat(translation.getCategoryName()).containsPattern(ARABIC_TEXT);
@@ -132,6 +131,15 @@ class ProductDataInitializerTest {
         });
 
         ProductResponse arabicProduct = arabicProducts.content().getFirst();
+        ProductResponse englishProduct = productService.getProductById(arabicProduct.id(), "en");
+        assertThat(arabicProduct.name()).isNotEqualTo(englishProduct.name());
+        assertThat(arabicProduct.scientificName()).isNotEqualTo(englishProduct.scientificName());
+        assertThat(arabicProduct.price()).isEqualByComparingTo(englishProduct.price());
+        assertThat(arabicProduct.imageUrl()).isEqualTo(englishProduct.imageUrl());
+        assertThat(arabicProduct.categoryId()).isEqualTo(englishProduct.categoryId());
+        assertThat(arabicProduct.categoryName()).isNotEqualTo(englishProduct.categoryName());
+        assertThat(arabicProduct.company()).isNotEqualTo(englishProduct.company());
+        assertThat(arabicProduct.route()).isNotEqualTo(englishProduct.route());
         assertThat(productService.getProductById(arabicProduct.id(), "ar")).isEqualTo(arabicProduct);
         assertThat(productService.searchProducts(
                 arabicProduct.name(),
@@ -178,6 +186,6 @@ class ProductDataInitializerTest {
         productDataInitializer.run(new DefaultApplicationArguments());
 
         assertThat(productRepository.count()).isEqualTo(798);
-        assertThat(productTranslationRepository.findAllByLanguage("ar")).hasSize(798);
+        assertThat(productTranslationRepository.findAllByLang("ar")).hasSize(798);
     }
 }

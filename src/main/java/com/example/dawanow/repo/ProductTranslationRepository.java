@@ -12,17 +12,17 @@ import org.springframework.data.repository.query.Param;
 
 public interface ProductTranslationRepository extends JpaRepository<ProductTranslation, Long> {
 
-    List<ProductTranslation> findAllByLanguage(String language);
+    List<ProductTranslation> findAllByLang(String lang);
 
     @EntityGraph(attributePaths = {"product", "product.category"})
-    Optional<ProductTranslation> findByProductIdAndLanguage(Long productId, String language);
+    Optional<ProductTranslation> findByProductIdAndLang(Long productId, String lang);
 
     @EntityGraph(attributePaths = {"product", "product.category"})
-    Page<ProductTranslation> findByLanguage(String language, Pageable pageable);
+    Page<ProductTranslation> findByLang(String lang, Pageable pageable);
 
     @EntityGraph(attributePaths = {"product", "product.category"})
-    Page<ProductTranslation> findByLanguageAndProductCategoryId(
-            String language,
+    Page<ProductTranslation> findByLangAndProductCategoryId(
+            String lang,
             Long categoryId,
             Pageable pageable
     );
@@ -31,7 +31,7 @@ public interface ProductTranslationRepository extends JpaRepository<ProductTrans
     @Query("""
             SELECT translation
             FROM ProductTranslation translation
-            WHERE translation.language = :language
+            WHERE translation.lang = :lang
               AND (
                     LOWER(translation.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
                     OR LOWER(translation.scientificName) LIKE LOWER(CONCAT('%', :keyword, '%'))
@@ -41,7 +41,7 @@ public interface ProductTranslationRepository extends JpaRepository<ProductTrans
               )
             """)
     Page<ProductTranslation> search(
-            @Param("language") String language,
+            @Param("lang") String lang,
             @Param("keyword") String keyword,
             Pageable pageable
     );

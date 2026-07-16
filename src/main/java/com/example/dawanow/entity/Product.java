@@ -40,11 +40,6 @@ public class Product {
     @Size(max = 500)
     private String name;
 
-    @Column(name = "arabic_name", nullable = false, length = 500)
-    @NotBlank
-    @Size(max = 500)
-    private String arabicName;
-
     @Column(name = "scientific_name", nullable = false, length = 1000)
     @NotBlank
     @Size(max = 1000)

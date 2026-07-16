@@ -21,8 +21,8 @@ import lombok.Setter;
 @Table(
         name = "product_translation",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_product_translation_product_language",
-                columnNames = {"product_id", "language"}
+                name = "uk_product_translation_product_lang",
+                columnNames = {"product_id", "lang"}
         )
 )
 @Getter
@@ -42,7 +42,7 @@ public class ProductTranslation {
     @Column(nullable = false, length = 5)
     @NotBlank
     @Size(max = 5)
-    private String language;
+    private String lang;
 
     @Column(nullable = false, length = 500)
     @NotBlank

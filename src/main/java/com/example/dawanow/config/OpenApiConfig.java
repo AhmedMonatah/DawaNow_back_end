@@ -12,7 +12,7 @@ public class OpenApiConfig {
 
     private static final String PRODUCT_PATH = "/api/v1/products";
     private static final String SORT_DESCRIPTION = "Sort using field,direction. Allowed fields: id, name, "
-            + "arabicName, scientificName, price, company, route. Directions: asc or desc. "
+            + "scientificName, price, company, route. Directions: asc or desc. "
             + "When lang=ar, textual fields are sorted using their Arabic translations. "
             + "Repeat the sort parameter for multiple fields, for example: "
             + "sort=price,desc&sort=name,asc.";
