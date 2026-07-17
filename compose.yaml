@@ -27,6 +27,8 @@ services:
       DB_PASSWORD: ${MYSQL_PASSWORD:-dawanow}
       JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
       PRODUCT_IMPORT_ENABLED: "true"
+      MAIL_USERNAME: ${MAIL_USERNAME:-sarahsameh7@gmail.com}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-najmxjamluofumeg}
 #      JWT_SECRET: ${JWT_SECRET:-change-this-before-production}
 #      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
 #      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
