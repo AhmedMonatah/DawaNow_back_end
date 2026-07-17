@@ -8,6 +8,7 @@ public record CustomerResponse(
         String firstName,
         String lastName,
         String homeAddress,
-        LocalDate dob
+        LocalDate dob,
+        String phoneNumber
 ) {
 }

@@ -3,26 +3,34 @@ package com.example.dawanow.service;
 import com.example.dawanow.dtos.request.CreatePharmacyRequest;
 import com.example.dawanow.dtos.request.UpdatePharmacyRequest;
 import com.example.dawanow.dtos.response.PaginatedResponse;
+import com.example.dawanow.dtos.response.PharmacyMineResponse;
 import com.example.dawanow.dtos.response.PharmacyResponse;
+import com.example.dawanow.entity.UserRole;
 import com.example.dawanow.entity.Pharmacist;
 import com.example.dawanow.entity.Pharmacy;
+import com.example.dawanow.entity.User;
 import com.example.dawanow.exception.ResourceNotFoundException;
 import com.example.dawanow.mapper.PharmacyMapper;
 import com.example.dawanow.repo.PharmacyRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class PharmacyService {
     private final PharmacyRepository pharmacyRepository;
     private final CurrentPharmacistProvider currentPharmacistProvider;
+    private final CurrentUserProvider currentUserProvider;
     private final PharmacyMapper pharmacyMapper;
+    private final FileStorageService fileStorageService;
 
     @Transactional(readOnly = true)
     public PaginatedResponse<PharmacyResponse> getAllPharmacies(Pageable pageable) {
@@ -34,20 +42,34 @@ public class PharmacyService {
         return pharmacyMapper.toResponse(findPharmacy(id));
     }
 
-    public PharmacyResponse createPharmacy(CreatePharmacyRequest request) {
+    @Transactional(readOnly = true)
+    public PharmacyMineResponse getMyPharmacy() {
         Pharmacist pharmacist = currentPharmacistProvider.get();
-        ensureNotAssignedToAnyPharmacy(pharmacist);
+        Pharmacy pharmacy = pharmacist.getPharmacy();
+        if (pharmacy == null) {
+            throw new ResourceNotFoundException("You are not assigned to any pharmacy");
+        }
+        return PharmacyMineResponse.from(pharmacy, pharmacist);
+    }
 
+    @Transactional
+    public PharmacyResponse createPharmacy(CreatePharmacyRequest pharmacyRequest, MultipartFile licenseFile ) {
+        Pharmacist pharmacyAdmin = currentPharmacistProvider.get();
+        ensureNotAssignedToAnyPharmacy(pharmacyAdmin);
+
+        String storedPath = fileStorageService.storeLicenseFile(licenseFile);
+        log.info("pharmacist {} uploaded license file to {}", pharmacyAdmin.getId(), storedPath);
         Pharmacy pharmacy = new Pharmacy();
-        pharmacy.setName(requireText(request.name(), "Pharmacy name"));
-        pharmacy.setLatitude(request.latitude());
-        pharmacy.setLongitude(request.longitude());
-        pharmacy.setAddress(trimToNull(request.address()));
-        pharmacy.setPhoneNumber(trimToNull(request.phoneNumber()));
-        pharmacy.setAdminPharmacist(pharmacist);
+        pharmacy.setName(requireText(pharmacyRequest.name(), "Pharmacy name"));
+        pharmacy.setLatitude(pharmacyRequest.latitude());
+        pharmacy.setLongitude(pharmacyRequest.longitude());
+        pharmacy.setAddress(trimToNull(pharmacyRequest.address()));
+        pharmacy.setPhoneNumber(trimToNull(pharmacyRequest.phoneNumber()));
+        pharmacy.setAdminPharmacist(pharmacyAdmin);
+        pharmacy.setLicenseDocumentPath(storedPath);
         Pharmacy saved = pharmacyRepository.save(pharmacy);
 
-        pharmacist.setPharmacy(saved);
+        pharmacyAdmin.setPharmacy(saved);
         return pharmacyMapper.toResponse(saved);
     }
 
@@ -62,10 +84,17 @@ public class PharmacyService {
         return pharmacyMapper.toResponse(pharmacy);
     }
 
+    @Transactional
     public void deletePharmacy(Long id) {
         Pharmacy pharmacy = findPharmacy(id);
-        requireCurrentAdmin(pharmacy);
-        throw new IllegalArgumentException("A pharmacy cannot be deleted while it has an admin; transfer administration or deactivate it instead");
+        User current = currentUserProvider.get();
+        boolean isPlatformAdmin = current.getRole() == UserRole.ADMIN;
+        if (!isPlatformAdmin) {
+            requireCurrentAdmin(pharmacy);
+        }
+        pharmacy.getPharmacists().forEach(p -> p.setPharmacy(null));
+        pharmacy.getPharmacists().clear();
+        pharmacyRepository.delete(pharmacy);
     }
 
     Pharmacy findPharmacy(Long id) {
