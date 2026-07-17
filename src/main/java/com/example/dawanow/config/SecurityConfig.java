@@ -54,8 +54,15 @@ public class SecurityConfig {
     public static final String[] SWAGGER = {
             "/v3/api-docs",
             "/v3/api-docs/**",
+            "/v3/api-docs.yaml",
             "/swagger-ui.html",
             "/swagger-ui/**",
+            "/swagger-ui/index.html",
+            "/swagger-resources",
+            "/swagger-resources/**",
+            "/webjars/**",
+            "/favicon.ico",
+            "/",
             "/error"
     };
 
@@ -66,8 +73,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET).permitAll()
-                        .requestMatchers(PUBLIC_POST).permitAll()
-                        .requestMatchers(SWAGGER).permitAll()
+                        .requestMatchers(HttpMethod.GET, SWAGGER).permitAll()
+                        .requestMatchers(HttpMethod.POST, PUBLIC_POST).permitAll()
                         .anyRequest().authenticated()
                 ).sessionManagement(session ->
                 session.sessionCreationPolicy(
