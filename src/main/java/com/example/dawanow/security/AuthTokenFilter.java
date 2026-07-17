@@ -38,13 +38,18 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         try {
             //Extract JWT from Authorization header
             String jwt = extractJwtFromRequest(request);
+            if (jwt == null) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             if (!jwtService.isAccessToken(jwt)) {
                 filterChain.doFilter(request, response);
                 return;
             }
 
             //Validate JWT and load userDetails
-            if (jwt != null && jwtService.validateJwtToken(jwt)) {
+            if (jwtService.validateJwtToken(jwt)) {
                 String username = jwtService.extractUsername(jwt);
                 if (SecurityContextHolder.getContext().getAuthentication() == null) {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
