@@ -33,7 +33,7 @@ public class EmailService {
             RestTemplate restTemplate = new RestTemplate();
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(resendApiKey);
+            headers.setBearerAuth(resendApiKey.trim());
 
             String htmlMsg = "<h3>Welcome to DawaNow, " + name + "!</h3>"
                     + "<p>Please use the following One-Time Password (OTP) to verify your identity:</p>"
