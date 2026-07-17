@@ -23,7 +23,7 @@ public class EmailService {
     @Value("${resend.api.key}")
     private String resendApiKey;
 
-    @Value("${resend.from.email:onboarding@resend.dev}")
+    @Value("${resend.from.email:support@medesy.me}")
     private String fromEmail;
 
     public void sendOtpEmail(String toEmail, String name, String otp) {
