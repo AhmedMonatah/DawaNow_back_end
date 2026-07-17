@@ -29,6 +29,7 @@ services:
       PRODUCT_IMPORT_ENABLED: "true"
       MAIL_USERNAME: ${MAIL_USERNAME:-sarahsameh7@gmail.com}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-najmxjamluofumeg}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
 #      JWT_SECRET: ${JWT_SECRET:-change-this-before-production}
 #      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
 #      OPENAI_API_KEY: ${OPENAI_API_KEY:-}

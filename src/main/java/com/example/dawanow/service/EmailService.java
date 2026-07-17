@@ -20,7 +20,7 @@ public class EmailService {
 
     private static final Logger logger = LoggerFactory.getLogger(EmailService.class);
 
-    @Value("${resend.api.key:re_hvMkTbEG_4XThGrgHBi52s6b6ae3iQsEo}")
+    @Value("${resend.api.key}")
     private String resendApiKey;
 
     @Value("${resend.from.email:onboarding@resend.dev}")
