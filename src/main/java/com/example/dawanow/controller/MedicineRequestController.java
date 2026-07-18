@@ -67,7 +67,8 @@ public class MedicineRequestController {
             )
             @Valid @RequestBody CreateMedicineRequestRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Medicine request created", medicineRequestService.createRequest(request)));
+        MedicineRequestResponse medicineRequestResponse = medicineRequestService.createRequest(request);
+        return ResponseEntity.ok(ApiResponse.success("Medicine request created", medicineRequestResponse));
     }
 
     @GetMapping
