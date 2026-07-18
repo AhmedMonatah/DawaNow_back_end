@@ -4,13 +4,7 @@ import com.example.dawanow.dtos.request.CreateMedicineRequestRequest;
 import com.example.dawanow.dtos.request.UpdateMedicineRequestStatusRequest;
 import com.example.dawanow.dtos.response.MedicineRequestResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
-import com.example.dawanow.entity.Customer;
-import com.example.dawanow.entity.MedicineRequest;
-import com.example.dawanow.entity.Pharmacist;
-import com.example.dawanow.entity.Pharmacy;
-import com.example.dawanow.entity.RequestStatus;
-import com.example.dawanow.entity.User;
-import com.example.dawanow.entity.UserRole;
+import com.example.dawanow.entity.*;
 import com.example.dawanow.exception.ResourceNotFoundException;
 import com.example.dawanow.mapper.MedicineRequestMapper;
 import com.example.dawanow.repo.MedicineRequestRepository;
@@ -21,6 +15,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -30,9 +26,45 @@ public class MedicineRequestService {
     private final PharmacyRepository pharmacyRepository;
     private final CurrentUserProvider currentUserProvider;
     private final MedicineRequestMapper medicineRequestMapper;
+    private final CartService cartService;
+    private final AssignmentService assignmentService;
 
+    @Transactional
     public MedicineRequestResponse createRequest(CreateMedicineRequestRequest request) {
-        return null;
+        Customer customer = (Customer)currentUserProvider.get();
+        Cart cart = cartService.getCartEntity();
+
+        if (cart.getItems().isEmpty()) {
+            throw new IllegalArgumentException("Cart is empty");
+        }
+        MedicineRequest medicineRequest = new MedicineRequest();
+
+        medicineRequest.setCustomer(customer);
+
+        medicineRequest.setStatus(RequestStatus.PENDING);
+
+        medicineRequest.setDeliveryLatitude(request.deliveryLatitude());
+
+        medicineRequest.setDeliveryLongitude(request.deliveryLongitude());
+
+        medicineRequest.setDeliveryAddress(request.deliveryAddress());
+
+
+        for(CartItem cartItem :  cart.getItems()) {
+            RequestItem requestItem = new RequestItem();
+            requestItem.setProduct(cartItem.getProduct());
+            requestItem.setQuantity(cartItem.getQuantity());
+            requestItem.setRequest(medicineRequest);
+            medicineRequest.getItems().add(requestItem);
+        }
+
+        medicineRequestRepository.save(medicineRequest);
+
+        assignmentService.assignNearbyPharmacies(medicineRequest);
+
+        cartService.clearCart();
+
+        return medicineRequestMapper.toResponse(medicineRequest);
     }
 
     @Transactional(readOnly = true)
@@ -140,4 +172,5 @@ public class MedicineRequestService {
     private boolean isApplicationAdmin(User user) {
         return user.getRole() == UserRole.ADMIN;
     }
+
 }
