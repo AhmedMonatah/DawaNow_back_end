@@ -82,6 +82,7 @@ public class ProductController {
                             examples = @ExampleObject(value = INVALID_SORT_EXAMPLE)
                     )
             )
+
     })
     public ResponseEntity<ApiResponse<PaginatedResponse<ProductResponse>>> getAllProducts(
             @Parameter(description = "Response language: en or ar", example = "en")

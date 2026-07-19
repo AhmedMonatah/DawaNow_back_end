@@ -1,11 +1,7 @@
 package com.example.dawanow.entity;
 
-import jakarta.persistence.DiscriminatorValue;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.*;
+
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
@@ -22,6 +18,9 @@ public class Pharmacist extends User {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pharmacy_id")
     private Pharmacy pharmacy;
+
+    @OneToOne(mappedBy = "adminPharmacist")
+    private Pharmacy administeredPharmacy;
 
     @OneToMany(mappedBy = "pharmacist")
     private List<Order> orders = new ArrayList<>();

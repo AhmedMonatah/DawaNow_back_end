@@ -6,9 +6,6 @@ public record PharmacyResponse(
         Double latitude,
         Double longitude,
         String address,
-        String phoneNumber,
-        String licenseNumber,
-        String licenseDocumentPath,
-        Long adminPharmacistId
+        String phoneNumber
 ) {
 }
