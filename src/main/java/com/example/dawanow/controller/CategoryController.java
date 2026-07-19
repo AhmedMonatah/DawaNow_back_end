@@ -83,26 +83,16 @@ public class CategoryController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'PHARMACIST', 'ADMIN')")
     @Operation(
             summary = "Get category by ID",
             description = "Returns one category. Set lang=ar to return its Arabic name; the default language "
-                    + "is English. Available to customers, pharmacists, and administrators.",
-            security = @SecurityRequirement(name = "basicAuth")
+                    + "is English. This endpoint is public."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
                     useReturnTypeSchema = true,
                     description = "Category fetched successfully"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "401",
-                    description = "Authentication is required"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "403",
-                    description = "Customer, pharmacist, or administrator role is required"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",
