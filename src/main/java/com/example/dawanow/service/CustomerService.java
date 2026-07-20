@@ -1,6 +1,7 @@
 package com.example.dawanow.service;
 
 import com.example.dawanow.dtos.request.UpdateCustomerProfileRequest;
+import com.example.dawanow.dtos.request.UpdateUserRequest;
 import com.example.dawanow.dtos.response.CustomerResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.entity.Customer;
@@ -22,6 +23,7 @@ public class CustomerService {
     private final CustomerRepository customerRepository;
     private final CurrentUserProvider currentUserProvider;
     private final CustomerMapper customerMapper;
+    private final UserService userService;
 
     @Transactional(readOnly = true)
     public CustomerResponse getCurrentCustomer() {
@@ -30,12 +32,8 @@ public class CustomerService {
 
     public CustomerResponse updateCurrentCustomer(UpdateCustomerProfileRequest request) {
         Customer customer = getCurrentCustomerEntity();
-        if (request.homeAddress() != null) {
-            customer.setHomeAddress(request.homeAddress());
-        }
-        if (request.dob() != null) {
-            customer.setDob(request.dob());
-        }
+        userService.updateUser(customer.getId(),
+                new UpdateUserRequest(null, request.firstName(), request.lastName(), request.homeAddress(), request.dob()));
         return customerMapper.toResponse(customer);
     }
 
