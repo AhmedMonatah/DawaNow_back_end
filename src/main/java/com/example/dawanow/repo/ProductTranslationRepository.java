@@ -49,10 +49,13 @@ public interface ProductTranslationRepository extends JpaRepository<ProductTrans
             WHERE translation.lang = :lang
               AND (
                     LOWER(translation.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(translation.productName) LIKE LOWER(CONCAT('%', :keyword, '%'))
                     OR LOWER(translation.scientificName) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                    OR LOWER(translation.categoryName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(translation.scientificCategory) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(translation.consumerCategory) LIKE LOWER(CONCAT('%', :keyword, '%'))
                     OR LOWER(translation.company) LIKE LOWER(CONCAT('%', :keyword, '%'))
                     OR LOWER(translation.route) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(translation.description) LIKE LOWER(CONCAT('%', :keyword, '%'))
               )
             """)
     Page<ProductTranslation> search(

@@ -40,10 +40,33 @@ public class Product {
     @Size(max = 500)
     private String name;
 
+    @Column(name = "product_name", nullable = false, length = 500)
+    @NotBlank
+    @Size(max = 500)
+    private String productName;
+
+    @Column(length = 100)
+    @Size(max = 100)
+    private String strength;
+
+    @Column(name = "pack_size", length = 100)
+    @Size(max = 100)
+    private String packSize;
+
+    @Column(nullable = false, length = 100)
+    @NotBlank
+    @Size(max = 100)
+    private String form;
+
     @Column(name = "scientific_name", nullable = false, length = 1000)
     @NotBlank
     @Size(max = 1000)
     private String scientificName;
+
+    @Column(name = "scientific_category", nullable = false, length = 255)
+    @NotBlank
+    @Size(max = 255)
+    private String scientificCategory;
 
     @Column(nullable = false, precision = 12, scale = 2)
     @NotNull
@@ -72,6 +95,11 @@ public class Product {
     @Size(max = 100)
     @Pattern(regexp = "EAR|EFF|EYE|INJECTION|MOUTH|ORAL\\.LIQUID|ORAL\\.SOLID|RECTAL|SPRAY|TOPICAL")
     private String route;
+
+    @Column(nullable = false, length = 2000)
+    @NotBlank
+    @Size(max = 2000)
+    private String description;
 
     @OneToMany(mappedBy = "product")
     private List<OrderItem> orderItems = new ArrayList<>();
