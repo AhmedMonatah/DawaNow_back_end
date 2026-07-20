@@ -6,6 +6,8 @@ public record PharmacistResponse(
         String firstName,
         String lastName,
         String phoneNumber,
+        String dob,
+        String homeAddress,
         Long pharmacyId,
         boolean pharmacyAdmin
 ) {

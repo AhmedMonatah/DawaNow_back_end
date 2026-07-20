@@ -1,5 +1,6 @@
 package com.example.dawanow.controller;
 
+import com.example.dawanow.dtos.request.UpdatePharmacistProfileRequest;
 import com.example.dawanow.dtos.response.ApiResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.dtos.response.PharmacistResponse;
@@ -9,6 +10,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +20,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -53,6 +57,38 @@ public class PharmacistController {
     })
     public ResponseEntity<ApiResponse<PharmacistResponse>> getCurrentPharmacist() {
         return ResponseEntity.ok(ApiResponse.success("Current pharmacist fetched", pharmacistService.getCurrentPharmacist()));
+    }
+
+    @PutMapping("/me")
+    @PreAuthorize("hasRole('PHARMACIST')")
+    @Operation(
+            summary = "Update current pharmacist profile",
+            description = "Partially updates the profile of the currently authenticated pharmacist; omitted fields keep their current values.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Pharmacist updated successfully and returned"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "Pharmacist role is required"
+            )
+    })
+    public ResponseEntity<ApiResponse<PharmacistResponse>> updateCurrentPharmacist(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Pharmacist fields to update",
+                    required = true
+            )
+            @Valid @RequestBody UpdatePharmacistProfileRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.success("Pharmacist updated", pharmacistService.updateCurrentPharmacist(request)));
     }
 
     @GetMapping
