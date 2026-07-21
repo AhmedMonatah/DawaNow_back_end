@@ -16,6 +16,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -89,6 +93,18 @@ public class PharmacistService {
 
     private Pharmacist findPharmacist(Long id) {
         return pharmacistRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Pharmacist not found"));
+    }
+
+    public Map<Long, List<Pharmacist>> findActivePharmacistsByPharmaciesId(List<Long> pharmacyIds) {
+        if (pharmacyIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<Long, List<Pharmacist>> grouped = pharmacistRepository.findOnDutyByPharmacyIdIn(pharmacyIds).stream()
+                .collect(Collectors.groupingBy(p -> p.getPharmacy().getId()));
+
+        return pharmacyIds.stream()
+                .collect(Collectors.toMap(id -> id, id -> grouped.getOrDefault(id, List.of())));
     }
 
 }

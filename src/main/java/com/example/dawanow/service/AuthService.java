@@ -8,6 +8,7 @@ import com.example.dawanow.entity.*;
 import com.example.dawanow.exception.ResourceAlreadyExistsException;
 import com.example.dawanow.exception.ResourceNotFoundException;
 import com.example.dawanow.mapper.UserMapper;
+import com.example.dawanow.repo.PharmacistPresenceRepository;
 import com.example.dawanow.repo.UserRepository;
 import com.example.dawanow.repo.UserTokenRepository;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -33,6 +34,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final UserRepository userRepository;
     private final UserTokenRepository userTokenRepository;
+    private final PharmacistPresenceRepository pharmacistPresenceRepository;
     private final UserMapper userMapper;
     private final EmailService emailService;
     private final OtpService otpService;
@@ -41,13 +43,14 @@ public class AuthService {
             new ConcurrentHashMap<>();
 
 
-    public AuthService(AuthenticationManager authenticationManager,OtpService otpService, EmailService emailService, PasswordEncoder passwordEncoder,  JwtService jwtService,  UserMapper userMapper, UserRepository userRepository, UserTokenRepository userTokenRepository) {
+    public AuthService(AuthenticationManager authenticationManager, OtpService otpService, EmailService emailService, PasswordEncoder passwordEncoder, JwtService jwtService, UserMapper userMapper, UserRepository userRepository, UserTokenRepository userTokenRepository, PharmacistPresenceRepository pharmacistPresenceRepository) {
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userRepository = userRepository;
         this.userMapper = userMapper;
         this.userTokenRepository = userTokenRepository;
+        this.pharmacistPresenceRepository = pharmacistPresenceRepository;
         this.emailService = emailService;
         this.otpService = otpService;
     }
@@ -126,6 +129,10 @@ public class AuthService {
 
 
         user = userRepository.save(user);
+
+        if (user instanceof Pharmacist) {
+            pharmacistPresenceRepository.save(new PharmacistPresence(user.getId()));
+        }
 
         pendingRegistrations.remove(request.email());
 
