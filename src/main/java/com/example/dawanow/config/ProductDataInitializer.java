@@ -86,16 +86,31 @@ public class ProductDataInitializer implements ApplicationRunner {
             log.info("Imported {} products and {} categories", importedProducts.size(), categories.size());
         } else {
             products = indexProducts(productRepository.findAll());
+            List<Product> missingProducts = new ArrayList<>();
+            Map<String, Category> categories = null;
+
             for (ProductSeed seed : seeds) {
                 ProductKey key = productKey(seed.name(), seed.price());
                 Product product = products.get(key);
                 if (product == null) {
-                    throw new IllegalStateException(
-                            "Existing product table does not contain dataset product: " + seed.name()
+                    if (categories == null) {
+                        categories = loadCategories(seeds);
+                    }
+                    Product newProduct = toProduct(
+                            seed,
+                            categories.get(categoryKey(seed.consumerCategory()))
                     );
+                    missingProducts.add(newProduct);
                 }
             }
-            log.info("Product import skipped because the product table is not empty");
+
+            if (!missingProducts.isEmpty()) {
+                productRepository.saveAll(missingProducts);
+                products = indexProducts(productRepository.findAll());
+                log.info("Imported {} missing products", missingProducts.size());
+            } else {
+                log.info("Product import skipped because all dataset products are already in the database");
+            }
         }
 
         synchronizeArabicTranslations(seeds, translationSeeds, products);
