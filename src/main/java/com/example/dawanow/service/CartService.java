@@ -36,6 +36,12 @@ public class CartService {
         return cartMapper.toResponse(cart);
     }
 
+    @Transactional
+    public Cart getCartEntity(){
+        Cart cart = getOrCreateCart();
+        return cart;
+    }
+
 
     @Transactional
     public CartResponse addItem(AddCartItemRequest request){

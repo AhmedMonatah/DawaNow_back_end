@@ -5,12 +5,18 @@ import java.math.BigDecimal;
 public record ProductResponse(
         Long id,
         String name,
-        String scientificName,
+        String productName,
+        String strength,
+        String packSize,
+        String form,
         BigDecimal price,
-        String imageUrl,
+        String scientificName,
+        String scientificCategory,
         Long categoryId,
-        String categoryName,
+        String consumerCategory,
         String company,
-        String route
+        String route,
+        String description,
+        String imageUrl
 ) {
 }

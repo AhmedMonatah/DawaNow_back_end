@@ -10,7 +10,7 @@ import java.util.List;
 public record CreateMedicineRequestRequest(
         @NotNull @DecimalMin("-90.0") @DecimalMax("90.0") Double deliveryLatitude,
         @NotNull @DecimalMin("-180.0") @DecimalMax("180.0") Double deliveryLongitude,
-        String deliveryAddress,
-        @Valid @NotEmpty List<MedicineRequestItemRequest> items
+        String deliveryAddress
+//        @Valid @NotEmpty List<MedicineRequestItemRequest> items
 ) {
 }

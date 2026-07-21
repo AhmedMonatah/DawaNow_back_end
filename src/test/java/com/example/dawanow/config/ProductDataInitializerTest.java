@@ -1,6 +1,7 @@
 package com.example.dawanow.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.dawanow.dtos.request.CreateCategoryRequest;
 import com.example.dawanow.dtos.request.UpdateCategoryRequest;
@@ -8,15 +9,18 @@ import com.example.dawanow.dtos.response.CategoryResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.dtos.response.ProductResponse;
 import com.example.dawanow.entity.Category;
+import com.example.dawanow.entity.CategoryTranslation;
 import com.example.dawanow.entity.Product;
 import com.example.dawanow.entity.ProductTranslation;
 import com.example.dawanow.repo.CategoryRepository;
+import com.example.dawanow.repo.CategoryTranslationRepository;
 import com.example.dawanow.repo.ProductRepository;
 import com.example.dawanow.repo.ProductTranslationRepository;
 import com.example.dawanow.service.CategoryService;
 import com.example.dawanow.service.ProductService;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -63,6 +67,9 @@ class ProductDataInitializerTest {
     private CategoryRepository categoryRepository;
 
     @Autowired
+    private CategoryTranslationRepository categoryTranslationRepository;
+
+    @Autowired
     private CategoryService categoryService;
 
     @Autowired
@@ -77,10 +84,12 @@ class ProductDataInitializerTest {
         List<Product> products = productRepository.findAll();
         List<Category> categories = categoryRepository.findAll();
         List<ProductTranslation> translations = productTranslationRepository.findAllByLang("ar");
+        List<CategoryTranslation> categoryTranslations = categoryTranslationRepository.findAllByLang("ar");
 
         assertThat(products).hasSize(798);
-        assertThat(categories).hasSize(226);
+        assertThat(categories).hasSize(24);
         assertThat(translations).hasSize(798);
+        assertThat(categoryTranslations).hasSize(24);
         assertThat(translations)
                 .extracting(ProductTranslation::getName)
                 .noneMatch(name -> name.contains(BROWSER_TABS_TRANSLATION))
@@ -88,8 +97,7 @@ class ProductDataInitializerTest {
         assertThat(categories)
                 .extracting(Category::getName)
                 .doesNotHaveDuplicates()
-                .allMatch(name -> !name.isBlank() && name.equals(name.toUpperCase()))
-                .noneMatch(name -> NON_MEDICINE_CATEGORY.matcher(name).find());
+                .allMatch(name -> !name.isBlank() && name.equals(name.toUpperCase()));
         assertThat(products)
                 .extracting(Product::getName, Product::getPrice)
                 .doesNotHaveDuplicates();
@@ -99,22 +107,35 @@ class ProductDataInitializerTest {
                 .hasSize(categories.size());
         assertThat(products).allSatisfy(product -> {
             assertThat(product.getName()).isNotBlank();
+            assertThat(product.getProductName()).isNotBlank();
+            assertThat(product.getForm()).isNotBlank();
             assertThat(product.getScientificName()).isNotBlank();
+            assertThat(product.getScientificCategory()).isNotBlank();
             assertThat(product.getPrice()).isPositive();
             assertThat(product.getImageUrl()).startsWith("https://");
             assertThat(product.getCategory()).isNotNull();
             assertThat(product.getCategory().getId()).isNotNull();
             assertThat(product.getCompany()).isNotBlank();
             assertThat(product.getRoute()).isIn(VALID_ROUTES);
+            assertThat(product.getDescription()).isNotBlank();
         });
         assertThat(translations).allSatisfy(translation -> {
             assertThat(translation.getProduct()).isNotNull();
             assertThat(translation.getLang()).isEqualTo("ar");
             assertThat(translation.getName()).containsPattern(ARABIC_TEXT);
+            assertThat(translation.getProductName()).containsPattern(ARABIC_TEXT);
+            assertThat(translation.getForm()).containsPattern(ARABIC_TEXT);
             assertThat(translation.getScientificName()).containsPattern(ARABIC_TEXT);
-            assertThat(translation.getCategoryName()).containsPattern(ARABIC_TEXT);
+            assertThat(translation.getScientificCategory()).containsPattern(ARABIC_TEXT);
+            assertThat(translation.getConsumerCategory()).containsPattern(ARABIC_TEXT);
             assertThat(translation.getCompany()).containsPattern(ARABIC_TEXT);
             assertThat(translation.getRoute()).containsPattern(ARABIC_TEXT);
+            assertThat(translation.getDescription()).containsPattern(ARABIC_TEXT);
+        });
+        assertThat(categoryTranslations).allSatisfy(translation -> {
+            assertThat(translation.getCategory()).isNotNull();
+            assertThat(translation.getLang()).isEqualTo("ar");
+            assertThat(translation.getName()).containsPattern(ARABIC_TEXT);
         });
 
         PaginatedResponse<ProductResponse> arabicProducts = productService.getAllProducts(
@@ -125,7 +146,8 @@ class ProductDataInitializerTest {
         assertThat(arabicProducts.content()).allSatisfy(product -> {
             assertThat(product.name()).containsPattern(ARABIC_TEXT);
             assertThat(product.scientificName()).containsPattern(ARABIC_TEXT);
-            assertThat(product.categoryName()).containsPattern(ARABIC_TEXT);
+            assertThat(product.scientificCategory()).containsPattern(ARABIC_TEXT);
+            assertThat(product.consumerCategory()).containsPattern(ARABIC_TEXT);
             assertThat(product.company()).containsPattern(ARABIC_TEXT);
             assertThat(product.route()).containsPattern(ARABIC_TEXT);
         });
@@ -137,7 +159,7 @@ class ProductDataInitializerTest {
         assertThat(arabicProduct.price()).isEqualByComparingTo(englishProduct.price());
         assertThat(arabicProduct.imageUrl()).isEqualTo(englishProduct.imageUrl());
         assertThat(arabicProduct.categoryId()).isEqualTo(englishProduct.categoryId());
-        assertThat(arabicProduct.categoryName()).isNotEqualTo(englishProduct.categoryName());
+        assertThat(arabicProduct.consumerCategory()).isNotEqualTo(englishProduct.consumerCategory());
         assertThat(arabicProduct.company()).isNotEqualTo(englishProduct.company());
         assertThat(arabicProduct.route()).isNotEqualTo(englishProduct.route());
         assertThat(productService.getProductById(arabicProduct.id(), "ar")).isEqualTo(arabicProduct);
@@ -155,20 +177,60 @@ class ProductDataInitializerTest {
                 "ar",
                 PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "price"))
         ).content()).hasSize(20);
+
+        PaginatedResponse<ProductResponse> englishFilteredProducts = productService.getAllProducts(
+                "en",
+                englishProduct.company().toLowerCase(Locale.ROOT),
+                englishProduct.categoryId(),
+                PageRequest.of(0, 20, Sort.by("name"))
+        );
+        assertThat(englishFilteredProducts.content()).isNotEmpty().allSatisfy(product -> {
+            assertThat(product.company()).isEqualToIgnoringCase(englishProduct.company());
+            assertThat(product.categoryId()).isEqualTo(englishProduct.categoryId());
+        });
+        assertThat(productService.getAllProducts(
+                "en",
+                englishProduct.company(),
+                null,
+                PageRequest.of(0, 20, Sort.by("name"))
+        ).content()).isNotEmpty().allSatisfy(product ->
+                assertThat(product.company()).isEqualToIgnoringCase(englishProduct.company())
+        );
+        assertThat(productService.getAllProducts(
+                "en",
+                null,
+                englishProduct.categoryId(),
+                PageRequest.of(0, 20, Sort.by("name"))
+        ).content()).isNotEmpty().allSatisfy(product ->
+                assertThat(product.categoryId()).isEqualTo(englishProduct.categoryId())
+        );
+
+        PaginatedResponse<ProductResponse> arabicFilteredProducts = productService.getAllProducts(
+                "ar",
+                arabicProduct.company(),
+                arabicProduct.categoryId(),
+                PageRequest.of(0, 20, Sort.by("name"))
+        );
+        assertThat(arabicFilteredProducts.content()).isNotEmpty().allSatisfy(product -> {
+            assertThat(product.company()).isEqualTo(arabicProduct.company());
+            assertThat(product.categoryId()).isEqualTo(arabicProduct.categoryId());
+        });
     }
 
     @Test
     @Transactional
     void supportsCategoryCrud() {
         PaginatedResponse<CategoryResponse> categories = categoryService.getAllCategories(
+                "en",
                 PageRequest.of(0, 10, Sort.by("name"))
         );
         assertThat(categories.content()).hasSize(10);
-        assertThat(categories.totalElements()).isEqualTo(226);
+        assertThat(categories.totalElements()).isEqualTo(24);
 
         CategoryResponse created = categoryService.createCategory(new CreateCategoryRequest("test category"));
         assertThat(created.name()).isEqualTo("TEST CATEGORY");
-        assertThat(categoryService.getCategoryById(created.id())).isEqualTo(created);
+        assertThat(categoryService.getCategoryById(created.id(), "en")).isEqualTo(created);
+        assertThat(categoryService.getCategoryById(created.id(), "ar")).isEqualTo(created);
 
         CategoryResponse updated = categoryService.updateCategory(
                 created.id(),
@@ -182,10 +244,38 @@ class ProductDataInitializerTest {
 
     @Test
     @Transactional
+    void returnsLocalizedCategoriesWithStableIds() {
+        PaginatedResponse<CategoryResponse> arabicCategories = categoryService.getAllCategories(
+                "ar",
+                PageRequest.of(0, 20, Sort.by("name"))
+        );
+
+        assertThat(arabicCategories.totalElements()).isEqualTo(24);
+        assertThat(arabicCategories.content()).hasSize(20).allSatisfy(category ->
+                assertThat(category.name()).containsPattern(ARABIC_TEXT)
+        );
+
+        CategoryResponse arabicCategory = arabicCategories.content().getFirst();
+        CategoryResponse englishCategory = categoryService.getCategoryById(arabicCategory.id(), "en");
+        assertThat(categoryService.getCategoryById(arabicCategory.id(), "ar")).isEqualTo(arabicCategory);
+        assertThat(arabicCategory.id()).isEqualTo(englishCategory.id());
+        assertThat(arabicCategory.name()).isNotEqualTo(englishCategory.name());
+
+        assertThatThrownBy(() -> categoryService.getAllCategories(
+                "fr",
+                PageRequest.of(0, 20, Sort.by("name"))
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unsupported language. Supported values are en and ar");
+    }
+
+    @Test
+    @Transactional
     void synchronizesTranslationsWhenProductsAlreadyExist() throws IOException {
         productDataInitializer.run(new DefaultApplicationArguments());
 
         assertThat(productRepository.count()).isEqualTo(798);
         assertThat(productTranslationRepository.findAllByLang("ar")).hasSize(798);
+        assertThat(categoryTranslationRepository.findAllByLang("ar")).hasSize(24);
     }
 }

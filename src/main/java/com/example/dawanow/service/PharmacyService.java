@@ -92,7 +92,13 @@ public class PharmacyService {
         if (!isPlatformAdmin) {
             requireCurrentAdmin(pharmacy);
         }
-        pharmacy.getPharmacists().forEach(p -> p.setPharmacy(null));
+        pharmacy.getPharmacists().forEach(p -> {
+            p.setPharmacy(null);
+            if (p.getAdministeredPharmacy() != null
+                    && p.getAdministeredPharmacy().getId().equals(pharmacy.getId())) {
+                p.setAdministeredPharmacy(null);
+            }
+        });
         pharmacy.getPharmacists().clear();
         pharmacyRepository.delete(pharmacy);
     }

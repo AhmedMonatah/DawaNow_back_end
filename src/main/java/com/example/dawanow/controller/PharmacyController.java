@@ -2,12 +2,10 @@ package com.example.dawanow.controller;
 
 import com.example.dawanow.dtos.request.CreatePharmacyRequest;
 import com.example.dawanow.dtos.request.UpdatePharmacyRequest;
-import com.example.dawanow.dtos.response.ApiResponse;
-import com.example.dawanow.dtos.response.PaginatedResponse;
-import com.example.dawanow.dtos.response.PharmacyMineResponse;
-import com.example.dawanow.dtos.response.PharmacyResponse;
+import com.example.dawanow.dtos.response.*;
 import com.example.dawanow.entity.Pharmacist;
 import com.example.dawanow.entity.User;
+import com.example.dawanow.service.MedicineRequestService;
 import com.example.dawanow.service.PharmacyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -33,6 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class PharmacyController {
 
     private final PharmacyService pharmacyService;
+    private final MedicineRequestService medicineRequestService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('CUSTOMER', 'PHARMACIST', 'ADMIN')")
@@ -60,6 +59,40 @@ public class PharmacyController {
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
         return ResponseEntity.ok(ApiResponse.success("Pharmacies fetched", pharmacyService.getAllPharmacies(pageable)));
+    }
+
+
+    @GetMapping("/requests")
+    @PreAuthorize("hasRole('PHARMACIST')")
+    @Operation(
+            summary = "Get current pharmacy requests",
+            description = "Returns a paginated list of medicine requests assigned to the logged-in pharmacist's pharmacy.",
+            security = @SecurityRequirement(name = "basicAuth"))
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Pharmacy requests fetched successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "Pharmacist role is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Pharmacist not assigned to any pharmacy"
+            )
+    })
+    public ResponseEntity<ApiResponse<PaginatedResponse<MedicineRequestResponse>>> getCurrentPharmacyRequests(
+            @ParameterObject Pageable pageable) {
+
+        PaginatedResponse<MedicineRequestResponse> requests = medicineRequestService.getCurrentPharmacyRequests(pageable);
+
+        return ResponseEntity.ok(ApiResponse.success("Pharmacy requests fetched successfully", requests));
     }
 
     @GetMapping("/mine")
