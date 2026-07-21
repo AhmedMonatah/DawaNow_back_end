@@ -1,6 +1,8 @@
 package com.example.dawanow.service;
 
 import com.example.dawanow.dtos.request.AssignPharmacistToPharmacyRequest;
+import com.example.dawanow.dtos.request.UpdatePharmacistProfileRequest;
+import com.example.dawanow.dtos.request.UpdateUserRequest;
 import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.dtos.response.PharmacistResponse;
 import com.example.dawanow.entity.Pharmacist;
@@ -22,10 +24,18 @@ public class PharmacistService {
     private final PharmacyRepository pharmacyRepository;
     private final CurrentPharmacistProvider currentPharmacistProvider;
     private final PharmacistMapper pharmacistMapper;
+    private final UserService userService;
 
     @Transactional(readOnly = true)
     public PharmacistResponse getCurrentPharmacist() {
         return pharmacistMapper.toResponse(currentPharmacistProvider.get());
+    }
+
+    public PharmacistResponse updateCurrentPharmacist(UpdatePharmacistProfileRequest request) {
+        Pharmacist pharmacist = currentPharmacistProvider.get();
+        userService.updateUser(pharmacist.getId(),
+                new UpdateUserRequest(null, request.firstName(), request.lastName(), request.homeAddress(), request.dob()));
+        return pharmacistMapper.toResponse(pharmacist);
     }
 
     @Transactional(readOnly = true)

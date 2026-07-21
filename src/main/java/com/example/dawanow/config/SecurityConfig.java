@@ -35,7 +35,8 @@ public class SecurityConfig {
     public static final String[] PUBLIC_GET = {
             "/api/v1/products",
             "/api/v1/products/**",
-            "/api/v1/categories"
+            "/api/v1/categories",
+            "/api/v1/categories/**"
     };
 
     public static final String[] PUBLIC_POST = {

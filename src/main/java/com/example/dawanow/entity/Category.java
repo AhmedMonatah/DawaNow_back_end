@@ -1,5 +1,6 @@
 package com.example.dawanow.entity;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -33,4 +34,7 @@ public class Category {
 
     @OneToMany(mappedBy = "category")
     private List<Product> products = new ArrayList<>();
+
+    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CategoryTranslation> translations = new ArrayList<>();
 }

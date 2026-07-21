@@ -62,6 +62,7 @@ public class ProductController {
             description = "Public endpoint that returns products in a paginated response. "
                     + "Set lang=ar to return Arabic product data; the default language is English. "
                     + "Name, scientific name, category, company, and route use their translations. "
+                    + "Optionally filter by an exact company name and/or categoryId. "
                     + "Use page and size for pagination. Sort supports id, name, scientificName, "
                     + "price, company, and route with asc or desc, for example sort=price,desc. "
                     + "Repeat sort to order by multiple fields."
@@ -86,10 +87,17 @@ public class ProductController {
     public ResponseEntity<ApiResponse<PaginatedResponse<ProductResponse>>> getAllProducts(
             @Parameter(description = "Response language: en or ar", example = "en")
             @RequestParam(defaultValue = "en") String lang,
+            @Parameter(description = "Exact company name in the selected language", example = "EVA PHARMA")
+            @RequestParam(required = false) String company,
+            @Parameter(description = "Category ID", example = "1")
+            @RequestParam(required = false) Long categoryId,
             @ParameterObject @PageableDefault(size = 20, sort = "name") Pageable pageable
     ) {
         return ResponseEntity.ok(
-                ApiResponse.success("Products fetched", productService.getAllProducts(lang, pageable))
+                ApiResponse.success(
+                        "Products fetched",
+                        productService.getAllProducts(lang, company, categoryId, pageable)
+                )
         );
     }
 

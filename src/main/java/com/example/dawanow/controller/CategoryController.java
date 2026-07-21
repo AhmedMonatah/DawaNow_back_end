@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -51,6 +52,7 @@ public class CategoryController {
     @Operation(
             summary = "Get all categories",
             description = "Public endpoint that returns categories in a paginated response. "
+                    + "Set lang=ar to return Arabic category names; the default language is English. "
                     + "Use page and size for pagination and sort by id or name using asc or desc, "
                     + "for example sort=name,asc."
     )
@@ -71,31 +73,26 @@ public class CategoryController {
             )
     })
     public ResponseEntity<ApiResponse<PaginatedResponse<CategoryResponse>>> getAllCategories(
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang,
             @ParameterObject @PageableDefault(size = 20, sort = "name") Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Categories fetched", categoryService.getAllCategories(pageable)));
+        return ResponseEntity.ok(
+                ApiResponse.success("Categories fetched", categoryService.getAllCategories(lang, pageable))
+        );
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'PHARMACIST', 'ADMIN')")
     @Operation(
             summary = "Get category by ID",
-            description = "Returns one category. Available to customers, pharmacists, and administrators.",
-            security = @SecurityRequirement(name = "basicAuth")
+            description = "Returns one category. Set lang=ar to return its Arabic name; the default language "
+                    + "is English. This endpoint is public."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
                     useReturnTypeSchema = true,
                     description = "Category fetched successfully"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "401",
-                    description = "Authentication is required"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "403",
-                    description = "Customer, pharmacist, or administrator role is required"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",
@@ -109,9 +106,13 @@ public class CategoryController {
     })
     public ResponseEntity<ApiResponse<CategoryResponse>> getCategoryById(
             @Parameter(description = "Category ID", example = "1", required = true)
-            @PathVariable Long id
+            @PathVariable Long id,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Category fetched", categoryService.getCategoryById(id)));
+        return ResponseEntity.ok(
+                ApiResponse.success("Category fetched", categoryService.getCategoryById(id, lang))
+        );
     }
 
     @PostMapping

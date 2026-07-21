@@ -32,12 +32,30 @@ public interface ProductTranslationRepository extends JpaRepository<ProductTrans
             SELECT translation
             FROM ProductTranslation translation
             WHERE translation.lang = :lang
+              AND (:company IS NULL OR LOWER(translation.company) = LOWER(:company))
+              AND (:categoryId IS NULL OR translation.product.category.id = :categoryId)
+            """)
+    Page<ProductTranslation> findAllFiltered(
+            @Param("lang") String lang,
+            @Param("company") String company,
+            @Param("categoryId") Long categoryId,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"product", "product.category"})
+    @Query("""
+            SELECT translation
+            FROM ProductTranslation translation
+            WHERE translation.lang = :lang
               AND (
                     LOWER(translation.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(translation.productName) LIKE LOWER(CONCAT('%', :keyword, '%'))
                     OR LOWER(translation.scientificName) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                    OR LOWER(translation.categoryName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(translation.scientificCategory) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(translation.consumerCategory) LIKE LOWER(CONCAT('%', :keyword, '%'))
                     OR LOWER(translation.company) LIKE LOWER(CONCAT('%', :keyword, '%'))
                     OR LOWER(translation.route) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(translation.description) LIKE LOWER(CONCAT('%', :keyword, '%'))
               )
             """)
     Page<ProductTranslation> search(
