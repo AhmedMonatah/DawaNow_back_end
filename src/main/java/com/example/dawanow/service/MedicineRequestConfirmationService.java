@@ -17,7 +17,6 @@ import com.example.dawanow.entity.RequestItem;
 import com.example.dawanow.entity.RequestStatus;
 import com.example.dawanow.entity.User;
 import com.example.dawanow.exception.ResourceNotFoundException;
-import com.example.dawanow.factory.NotificationFactory;
 import com.example.dawanow.repo.MedicineRequestRepository;
 import com.example.dawanow.repo.OrderRepository;
 import com.example.dawanow.repo.PharmacyOfferItemRepository;
@@ -62,8 +61,8 @@ public class MedicineRequestConfirmationService {
             throw new IllegalArgumentException("This medicine request has already been confirmed");
         }
 
-        LinkedHashSet<Long> selectedIds = new LinkedHashSet<>(selection.selectedItemIds());
-        if (selectedIds.size() != selection.selectedItemIds().size()) {
+        LinkedHashSet<Long> selectedIds = new LinkedHashSet<>(selection.selectedRequestItemIds());
+        if (selectedIds.size() != selection.selectedRequestItemIds().size()) {
             throw new IllegalArgumentException("Selected offer item IDs must be unique");
         }
 
