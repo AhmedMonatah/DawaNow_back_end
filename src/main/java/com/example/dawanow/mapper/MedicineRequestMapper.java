@@ -14,5 +14,9 @@ public interface MedicineRequestMapper {
     MedicineRequestResponse toResponse(MedicineRequest request);
 
     @Mapping(target = "productId", source = "product.id")
+    @Mapping(target = "imageUrl", source = "item.product.imageUrl")
+    @Mapping(target = "productName", source = "item.product.name")
+    @Mapping(target = "quantity", source = "item.quantity")
+    @Mapping(target = "unitPrice", source = "item.product.price")
     MedicineRequestItemResponse toResponse(RequestItem item);
 }

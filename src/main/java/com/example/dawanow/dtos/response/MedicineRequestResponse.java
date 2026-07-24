@@ -12,6 +12,7 @@ public record MedicineRequestResponse(
         String deliveryAddress,
         RequestStatus status,
         LocalDateTime createdAt,
-        List<MedicineRequestItemResponse> items
+        List<MedicineRequestItemResponse> items,
+        String prescriptionUrl
 ) {
 }

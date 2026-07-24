@@ -12,4 +12,6 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Page<Order> findByPharmacyId(Long pharmacyId, Pageable pageable);
 
     boolean existsByOfferId(Long offerId);
+
+    boolean existsByOfferRequestId(Long requestId);
 }

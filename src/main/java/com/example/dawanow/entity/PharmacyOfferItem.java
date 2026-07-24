@@ -15,6 +15,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "pharmacy_offer_item")
 @Getter
@@ -34,7 +36,16 @@ public class PharmacyOfferItem {
     @JoinColumn(name = "request_item_id", nullable = false)
     private RequestItem requestItem;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private OfferItemStatus status = OfferItemStatus.ACCEPTED;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "product_id")
+    private Product product;
+
+    boolean alternative=false;
+
+//    @Enumerated(EnumType.STRING)
+//    @Column(nullable = false)
+//    private OfferItemStatus status = OfferItemStatus.PENDING;
 }
+
+// select exist from pharmacyOfferItem  poi
+// group by list

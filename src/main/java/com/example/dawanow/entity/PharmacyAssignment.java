@@ -30,6 +30,8 @@ public class PharmacyAssignment {
     @Column(nullable = false)
     private AssignmentStatus status = AssignmentStatus.PENDING;
 
+    @Column(name = "distance_km", nullable = false)
+    private Double distanceKm;
 
     @Column(nullable = false)
     private LocalDateTime assignedAt = LocalDateTime.now();

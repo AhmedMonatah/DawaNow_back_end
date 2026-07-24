@@ -1,8 +1,10 @@
 package com.example.dawanow.entity;
 
 public enum RequestStatus {
-    PENDING,
+    SEARCHING,      // Waiting for pharmacy offers
+    OFFERS_READY,   // Search ended and offers are available
+    PENDING, // Customer accepted one offer
+    COMPLETED,      // Order delivered
     CANCELLED,
-    FULFILLED,
-    UNFULFILLED  // max radius reached, nothing matched
+    EXPIRED,         // No offers received before timeout
 }

@@ -57,6 +57,8 @@ public class Order {
     @Column(name = "delivery_longitude", nullable = false)
     private Double deliveryLongitude;
 
+    private String deliveryAddress;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private OrderStatus status = OrderStatus.PENDING;

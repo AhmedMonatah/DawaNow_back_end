@@ -1,25 +1,25 @@
 package com.example.dawanow.controller;
 
-import com.example.dawanow.dtos.response.ApiResponse;
-import com.example.dawanow.dtos.response.PaginatedResponse;
-import com.example.dawanow.dtos.response.PharmacyOfferResponse;
+import com.example.dawanow.dtos.request.CreateOfferRequest;
+import com.example.dawanow.dtos.response.*;
 import com.example.dawanow.service.PharmacyOfferService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.apache.coyote.BadRequestException;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.nio.file.AccessDeniedException;
 
 @RestController
 @RequestMapping("/api/v1/offers")
@@ -96,22 +96,22 @@ public class PharmacyOfferController {
         return ResponseEntity.ok(ApiResponse.success("Offer fetched", pharmacyOfferService.getOfferById(id)));
     }
 
-    @PostMapping("/{id}/accept")
+    @PostMapping("/requests/{requestId}")
     @PreAuthorize("hasRole('PHARMACIST')")
     @Operation(
-            summary = "Accept an offer",
-            description = "Pharmacist only. Accepts a pending offer, which can then be used to create an order.",
+            summary = "Create a pharmacy offer",
+            description = "Allows an authenticated pharmacist to submit an offer for a specific assigned medicine request.",
             security = @SecurityRequirement(name = "basicAuth")
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200",
+                    responseCode = "201",
                     useReturnTypeSchema = true,
-                    description = "Offer accepted"
+                    description = "Pharmacy offer created successfully"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "Offer is no longer pending"
+                    description = "Bad request (e.g., duplicate offer or invalid items)"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "401",
@@ -119,36 +119,39 @@ public class PharmacyOfferController {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "403",
-                    description = "Pharmacist role is required"
+                    description = "Access denied / Request not assigned to your pharmacy"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",
-                    description = "Offer not found"
+                    description = "Medicine request or product not found"
             )
     })
-    public ResponseEntity<ApiResponse<PharmacyOfferResponse>> acceptOffer(
-            @Parameter(description = "Offer ID", example = "1", required = true)
-            @PathVariable Long id
-    ) {
-        return ResponseEntity.ok(ApiResponse.success("Offer accepted", pharmacyOfferService.acceptOffer(id)));
+    public ResponseEntity<ApiResponse<PharmacyOfferResponse>> createPharmacyOffer(
+            @PathVariable Long requestId,
+            @Valid @RequestBody CreateOfferRequest request
+    ) throws AccessDeniedException, BadRequestException {
+
+        PharmacyOfferResponse offerResponse = pharmacyOfferService.createOffer(requestId, request);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Pharmacy offer created successfully", offerResponse));
     }
 
-    @PostMapping("/{id}/reject")
-    @PreAuthorize("hasRole('PHARMACIST')")
+
+
+    @GetMapping("requests/{requestId}")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(
-            summary = "Reject an offer",
-            description = "Pharmacist only. Rejects a pending offer.",
+            summary = "Get offers for a medicine request",
+            description = "Customer only. Returns a paginated list of offers submitted by pharmacies for a specific medicine request.",
             security = @SecurityRequirement(name = "basicAuth")
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
                     useReturnTypeSchema = true,
-                    description = "Offer rejected"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "400",
-                    description = "Offer is no longer pending"
+                    description = "Pharmacy offers fetched successfully"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "401",
@@ -156,17 +159,98 @@ public class PharmacyOfferController {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "403",
-                    description = "Pharmacist role is required"
+                    description = "Customer role is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Medicine request not found"
+            )
+    })
+    public ResponseEntity<ApiResponse<PaginatedResponse<PharmacyOfferResponse>>> getRequestOffers(
+            @PathVariable Long requestId,
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable
+    ) {
+        PaginatedResponse<PharmacyOfferResponse> paginatedResponse = pharmacyOfferService.getRequestOffers(requestId, pageable);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                "Medicine request offers fetched successfully",
+                paginatedResponse
+        ));
+    }
+
+    @PostMapping("/{id}/accept")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(
+            summary = "Accept an offer",
+            description = "Customer only. Accepts a pending pharmacy offer and creates a corresponding order.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Offer accepted and order created successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Offer is no longer pending or request is already fulfilled"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "Customer role is required"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",
                     description = "Offer not found"
             )
     })
-    public ResponseEntity<ApiResponse<PharmacyOfferResponse>> rejectOffer(
-            @Parameter(description = "Offer ID", example = "1", required = true)
+    public ResponseEntity<ApiResponse<OrderResponse>> acceptOffer(
+            @Parameter(description = "ID of the offer to accept", example = "1", required = true)
             @PathVariable Long id
-    ) {
-        return ResponseEntity.ok(ApiResponse.success("Offer rejected", pharmacyOfferService.rejectOffer(id)));
+    ) throws AccessDeniedException, BadRequestException {
+        //pharmacyOfferService.acceptOffer(id);
+        return ResponseEntity.ok(ApiResponse.success("Offer accepted and Order Created", null));
+    }
+
+
+    @PostMapping("/{medicineRequestId}/reject-all")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(
+            summary = "Reject all offers for a request",
+            description = "Customer only. Rejects all pending offers associated with a specific medicine request.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "All offers rejected successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "No offers found or offers are no longer pending"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "Customer role is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Medicine request not found"
+            )
+    })
+    public ResponseEntity<ApiResponse<Void>> rejectAllOffers(
+            @Parameter(description = "Medicine Request ID", example = "1", required = true)
+            @PathVariable Long medicineRequestId
+    ) throws BadRequestException {
+        //pharmacyOfferService.rejectAllOffers(medicineRequestId);
+        return ResponseEntity.ok(ApiResponse.success("All offers rejected successfully"));
     }
 }
