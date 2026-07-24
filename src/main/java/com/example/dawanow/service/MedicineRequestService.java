@@ -90,6 +90,7 @@ public class MedicineRequestService {
             medicineRequest.getItems().add(requestItem);
         }
 
+        medicineRequest.setStatus(RequestStatus.PENDING);
         medicineRequestRepository.save(medicineRequest);
 
         assignmentService.assignNearbyPharmacies(medicineRequest);
@@ -126,7 +127,7 @@ public class MedicineRequestService {
 
     @Scheduled(fixedRate = 60000)
     public void expireRequests() {
-        List<MedicineRequest> medicineRequestList =  medicineRequestRepository.findByStatusAndExpiresAtBefore(RequestStatus.SEARCHING, LocalDateTime.now());
+        List<MedicineRequest> medicineRequestList =  medicineRequestRepository.findByStatusAndExpiresAtBefore(RequestStatus.PENDING, LocalDateTime.now());
         for (MedicineRequest medicineRequest : medicineRequestList) {
             medicineRequest.setStatus(RequestStatus.EXPIRED);
         }
@@ -183,7 +184,7 @@ public class MedicineRequestService {
            PharmacyOfferItem bestOffer = bestOfferItems.get(requestItem.getId());
             MedicineRequestResultItemResponse medicineRequestResultItemResponse;
             if(bestOffer == null){
-                medicineRequestResultItemResponse = MedicineRequestResultMapper.unavailable(requestItem.getProduct().getProductName());
+                medicineRequestResultItemResponse = MedicineRequestResultMapper.unavailable(requestItem.getProduct().getProductName(), requestItem.getId());
             }
             else{
                medicineRequestResultItemResponse = medicineRequestResultItemMapper.toResponse(bestOffer);

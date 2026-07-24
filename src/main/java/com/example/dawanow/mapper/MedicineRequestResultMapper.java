@@ -10,8 +10,9 @@ import java.math.BigDecimal;
 @Mapper(componentModel = "spring")
 public interface MedicineRequestResultMapper {
     MedicineRequestResultResponse toResponse(MedicineRequest medicineRequest);
-    public static MedicineRequestResultItemResponse unavailable(String requestedProductName) {
+    public static MedicineRequestResultItemResponse unavailable(String requestedProductName, Long requestItemId) {
         return new MedicineRequestResultItemResponse(
+                requestItemId,
                 null,
                 requestedProductName,
                 null,

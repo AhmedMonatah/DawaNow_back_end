@@ -142,7 +142,7 @@ public class PharmacyOfferService {
         }
 
         pharmacyOffer.setStatus(OfferStatus.ACCEPTED);
-        pharmacyOffer.getRequest().setStatus(RequestStatus.OFFER_ACCEPTED);
+        pharmacyOffer.getRequest().setStatus(RequestStatus.COMPLETED);
 
         rejectOtherOffers(pharmacyOffer.getRequest().getId(), id);
 

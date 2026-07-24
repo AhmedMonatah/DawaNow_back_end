@@ -12,7 +12,6 @@ public record MedicineRequestResponse(
         String deliveryAddress,
         RequestStatus status,
         LocalDateTime createdAt,
-//        Double distanceKm,
         List<MedicineRequestItemResponse> items,
         String prescriptionUrl
 ) {

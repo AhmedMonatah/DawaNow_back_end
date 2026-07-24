@@ -3,6 +3,9 @@ package com.example.dawanow.dtos.response;
 public record MedicineRequestItemResponse(
         Long id,
         Long productId,
-        Long quantity
+        String imageUrl,
+        String productName,
+        Long quantity,
+        Double unitPrice
 ) {
 }
