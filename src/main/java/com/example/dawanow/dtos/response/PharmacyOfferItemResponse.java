@@ -5,7 +5,7 @@ import com.example.dawanow.entity.OfferItemStatus;
 public record PharmacyOfferItemResponse(
         Long id,
         Long requestItemId,
-        Long productId,
-        OfferItemStatus status
+        Long productId
+//        OfferItemStatus status
 ) {
 }

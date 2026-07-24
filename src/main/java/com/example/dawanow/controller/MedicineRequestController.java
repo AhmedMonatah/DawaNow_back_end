@@ -1,13 +1,20 @@
 package com.example.dawanow.controller;
 
 import com.example.dawanow.dtos.request.CreateMedicineRequestRequest;
+import com.example.dawanow.dtos.request.ConfirmSelectionRequest;
 import com.example.dawanow.dtos.request.UpdateMedicineRequestStatusRequest;
 import com.example.dawanow.dtos.response.ApiResponse;
+import com.example.dawanow.dtos.response.ConfirmationResponse;
 import com.example.dawanow.dtos.response.MedicineRequestResponse;
+import com.example.dawanow.dtos.response.MedicineRequestResultResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
+import com.example.dawanow.service.FileStorageService;
 import com.example.dawanow.service.MedicineRequestService;
+import com.example.dawanow.service.MedicineRequestConfirmationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,15 +23,11 @@ import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/requests")
@@ -33,12 +36,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class MedicineRequestController {
 
     private final MedicineRequestService medicineRequestService;
+    private final FileStorageService fileStorageService;
+    private final MedicineRequestConfirmationService medicineRequestConfirmationService;
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(
             summary = "Create a medicine request",
-            description = "Customer only. Submits a new medicine request with a list of required products.",
+            description = "Customer only. Submits a new medicine request and an optional prescription image (JPEG or PNG).",
             security = @SecurityRequirement(name = "basicAuth")
     )
     @ApiResponses({
@@ -49,7 +54,7 @@ public class MedicineRequestController {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "Request validation failed"
+                    description = "Request validation failed or cart is empty"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "401",
@@ -58,17 +63,49 @@ public class MedicineRequestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "403",
                     description = "Customer role is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "413",
+                    description = "Uploaded prescription image exceeds the maximum allowed size"
             )
     })
     public ResponseEntity<ApiResponse<MedicineRequestResponse>> createRequest(
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "Medicine request with delivery location and items",
-                    required = true
+            @Parameter(
+                    description = "Medicine request payload containing delivery address and coordinates",
+                    required = true,
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE)
             )
-            @Valid @RequestBody CreateMedicineRequestRequest request
+            @RequestPart("request") CreateMedicineRequestRequest request,
+
+            @Parameter(
+                    description = "Optional prescription file (JPEG, PNG, PDF)",
+                    required = false,
+                    content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                            schema = @Schema(type = "string", format = "binary"))
+            )
+            @RequestPart(value = "prescription", required = false) MultipartFile prescription
     ) {
-        MedicineRequestResponse medicineRequestResponse = medicineRequestService.createRequest(request);
+        MedicineRequestResponse medicineRequestResponse = medicineRequestService.createRequest(request, prescription);
+
         return ResponseEntity.ok(ApiResponse.success("Medicine request created", medicineRequestResponse));
+    }
+
+    @PostMapping("/{requestId}/confirm")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(
+            summary = "Confirm selected offer items and create optimized pharmacy orders",
+            description = "Customer only. Chooses the minimum number of pharmacies that can fulfill every requested "
+                    + "item, then creates one order per selected pharmacy.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    public ResponseEntity<ApiResponse<ConfirmationResponse>> confirmSelection(
+            @PathVariable Long requestId,
+            @Valid @RequestBody ConfirmSelectionRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Selection confirmed and orders created",
+                medicineRequestConfirmationService.confirm(requestId, request)
+        ));
     }
 
     @GetMapping
@@ -126,6 +163,40 @@ public class MedicineRequestController {
     ) {
         return ResponseEntity.ok(ApiResponse.success("Medicine requests fetched", medicineRequestService.getAllRequests(pageable)));
     }
+    @GetMapping("/{requestId}/result")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(
+            summary = "Get medicine request calculation result",
+            description = "Customer only. Calculates and returns the total price and item availability/alternatives for a specified medicine request.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Medicine request result calculated and fetched successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "Access denied. Only customers can view medicine request results"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Medicine request not found"
+            )
+    })
+    public ResponseEntity<ApiResponse<MedicineRequestResultResponse>> getRequestResult(
+            @PathVariable Long requestId
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Medicine request result fetched",
+                medicineRequestService.getMedicineRequestResult(requestId)));
+    }
+
 
     @GetMapping("/pharmacy/{pharmacyId}")
     @PreAuthorize("hasRole('PHARMACIST')")
@@ -165,6 +236,8 @@ public class MedicineRequestController {
         ));
     }
 
+
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'PHARMACIST', 'ADMIN')")
     @Operation(
@@ -199,45 +272,45 @@ public class MedicineRequestController {
         return ResponseEntity.ok(ApiResponse.success("Medicine request fetched", medicineRequestService.getRequestById(id)));
     }
 
-    @PutMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
-    @Operation(
-            summary = "Update medicine request status",
-            description = "Application admins can update any request status. A customer can update only their own "
-                    + "pending request and can change it only to CANCELLED.",
-            security = @SecurityRequirement(name = "basicAuth")
-    )
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200",
-                    useReturnTypeSchema = true,
-                    description = "Request status updated successfully"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "400",
-                    description = "The requested status transition is invalid"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "401",
-                    description = "Authentication is required"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "403",
-                    description = "The current user is not allowed to update this request"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "404",
-                    description = "Medicine request not found"
-            )
-    })
-    public ResponseEntity<ApiResponse<MedicineRequestResponse>> updateRequestStatus(
-            @Parameter(description = "Medicine request ID", example = "1", required = true)
-            @PathVariable Long id,
-            @Valid @RequestBody UpdateMedicineRequestStatusRequest request
-    ) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Medicine request status updated",
-                medicineRequestService.updateRequestStatus(id, request)
-        ));
-    }
+//    @PutMapping("/{id}/status")
+//    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
+//    @Operation(
+//            summary = "Update medicine request status",
+//            description = "Application admins can update any request status. A customer can update only their own "
+//                    + "pending request and can change it only to CANCELLED.",
+//            security = @SecurityRequirement(name = "basicAuth")
+//    )
+//    @ApiResponses({
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+//                    responseCode = "200",
+//                    useReturnTypeSchema = true,
+//                    description = "Request status updated successfully"
+//            ),
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+//                    responseCode = "400",
+//                    description = "The requested status transition is invalid"
+//            ),
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+//                    responseCode = "401",
+//                    description = "Authentication is required"
+//            ),
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+//                    responseCode = "403",
+//                    description = "The current user is not allowed to update this request"
+//            ),
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+//                    responseCode = "404",
+//                    description = "Medicine request not found"
+//            )
+//    })
+//    public ResponseEntity<ApiResponse<MedicineRequestResponse>> updateRequestStatus(
+//            @Parameter(description = "Medicine request ID", example = "1", required = true)
+//            @PathVariable Long id,
+//            @Valid @RequestBody UpdateMedicineRequestStatusRequest request
+//    ) {
+//        return ResponseEntity.ok(ApiResponse.success(
+//                "Medicine request status updated",
+//                medicineRequestService.updateRequestStatus(id, request)
+//        ));
+//    }
 }

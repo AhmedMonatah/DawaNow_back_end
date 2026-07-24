@@ -1,5 +1,6 @@
 package com.example.dawanow.service;
 
+import com.example.dawanow.dtos.request.UpdateLocationRequest;
 import com.example.dawanow.dtos.request.UpdateUserRequest;
 import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.dtos.response.UserResponse;
@@ -29,6 +30,16 @@ public class UserService {
     @Transactional(readOnly = true)
     public PaginatedResponse<UserResponse> getAllUsers(Pageable pageable) {
         return PaginatedResponse.from(userRepository.findAll(pageable).map(userMapper::toResponse));
+    }
+
+    @Transactional
+    public UserResponse updateCurrentLocation(UpdateLocationRequest request) {
+        User user = currentUserProvider.get();
+
+        user.setDeliveryLatitude(request.latitude());
+        user.setDeliveryLongitude(request.longitude());
+
+        return userMapper.toResponse(user);
     }
 
     @Transactional(readOnly = true)

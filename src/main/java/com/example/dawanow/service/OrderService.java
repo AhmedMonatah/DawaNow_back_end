@@ -41,54 +41,81 @@ public class OrderService {
     private final OrderMapper orderMapper;
 
     public OrderResponse createOrder(CreateOrderRequest request) {
-        PharmacyOffer offer = pharmacyOfferRepository.findById(request.offerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Offer not found"));
+//        PharmacyOffer offer = pharmacyOfferRepository.findById(request.offerId())
+//                .orElseThrow(() -> new ResourceNotFoundException("Offer not found"));
+//
+//        if (offer.getStatus() != OfferStatus.ACCEPTED
+//                && offer.getStatus() != OfferStatus.PARTIALLY_ACCEPTED) {
+//            throw new IllegalArgumentException("Only accepted offers can be used to create an order");
+//        }
+//        Pharmacist offerPharmacist = requireOfferPharmacist(offer);
+//        if (orderRepository.existsByOfferId(offer.getId())) {
+//            throw new IllegalArgumentException("An order already exists for this offer");
+//        }
+//
+//        List<PharmacyOfferItem> acceptedItems = offer.getItems().stream()
+//                .filter(item -> item.getStatus() == OfferItemStatus.ACCEPTED)
+//                .toList();
+//        if (acceptedItems.isEmpty()) {
+//            throw new IllegalArgumentException("The accepted offer does not contain any accepted items");
+//        }
+//
+//        Order order = new Order();
+//        order.setUser(offer.getRequest().getCustomer());
+//        order.setPharmacy(offer.getPharmacy());
+//        order.setPharmacist(offerPharmacist);
+//        order.setOffer(offer);
+//        order.setDeliveryLatitude(offer.getRequest().getDeliveryLatitude());
+//        order.setDeliveryLongitude(offer.getRequest().getDeliveryLongitude());
+//        order.setDate(LocalDate.now());
+//
+//        BigDecimal totalPrice = BigDecimal.ZERO;
+//        for (PharmacyOfferItem offerItem : acceptedItems) {
+//            validateOfferItem(offerItem);
+//            Product product = offerItem.getRequestItem().getProduct();
+//            Long requestedQuantity = offerItem.getRequestItem().getQuantity();
+//            BigDecimal productPrice = product.getPrice();
+//
+//            OrderItem orderItem = new OrderItem();
+//            orderItem.setOrder(order);
+//            orderItem.setProduct(product);
+//            orderItem.setQuantity(requestedQuantity);
+//            orderItem.setUnitPrice(productPrice);
+//            order.getItems().add(orderItem);
+//
+//            totalPrice = totalPrice.add(
+//                    productPrice.multiply(BigDecimal.valueOf(requestedQuantity))
+//            );
+//        }
+//
+//        order.setTotalPrice(totalPrice);
+//        return orderMapper.toResponse(orderRepository.save(order));
+        return null;
+    }
 
-        if (offer.getStatus() != OfferStatus.ACCEPTED
-                && offer.getStatus() != OfferStatus.PARTIALLY_ACCEPTED) {
-            throw new IllegalArgumentException("Only accepted offers can be used to create an order");
-        }
-        Pharmacist offerPharmacist = requireOfferPharmacist(offer);
+
+    public OrderResponse createOrder(PharmacyOffer offer) {
+
         if (orderRepository.existsByOfferId(offer.getId())) {
             throw new IllegalArgumentException("An order already exists for this offer");
         }
 
-        List<PharmacyOfferItem> acceptedItems = offer.getItems().stream()
-                .filter(item -> item.getStatus() == OfferItemStatus.ACCEPTED)
-                .toList();
+        List<PharmacyOfferItem> acceptedItems = offer.getItems();
+
         if (acceptedItems.isEmpty()) {
             throw new IllegalArgumentException("The accepted offer does not contain any accepted items");
         }
-
         Order order = new Order();
         order.setUser(offer.getRequest().getCustomer());
         order.setPharmacy(offer.getPharmacy());
-        order.setPharmacist(offerPharmacist);
+        order.setPharmacist(offer.getPharmacist());
         order.setOffer(offer);
         order.setDeliveryLatitude(offer.getRequest().getDeliveryLatitude());
         order.setDeliveryLongitude(offer.getRequest().getDeliveryLongitude());
         order.setDate(LocalDate.now());
+        order.setDeliveryAddress(offer.getRequest().getDeliveryAddress());
+        order.setTotalPrice(offer.getTotalPrice());
 
-        BigDecimal totalPrice = BigDecimal.ZERO;
-        for (PharmacyOfferItem offerItem : acceptedItems) {
-            validateOfferItem(offerItem);
-            Product product = offerItem.getRequestItem().getProduct();
-            Long requestedQuantity = offerItem.getRequestItem().getQuantity();
-            BigDecimal productPrice = product.getPrice();
-
-            OrderItem orderItem = new OrderItem();
-            orderItem.setOrder(order);
-            orderItem.setProduct(product);
-            orderItem.setQuantity(requestedQuantity);
-            orderItem.setUnitPrice(productPrice);
-            order.getItems().add(orderItem);
-
-            totalPrice = totalPrice.add(
-                    productPrice.multiply(BigDecimal.valueOf(requestedQuantity))
-            );
-        }
-
-        order.setTotalPrice(totalPrice);
         return orderMapper.toResponse(orderRepository.save(order));
     }
 

@@ -46,14 +46,19 @@ public class MedicineRequest {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private RequestStatus status = RequestStatus.PENDING;
+    private RequestStatus status = RequestStatus.SEARCHING;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt ;
+
+    private LocalDateTime expiresAt ;
 
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RequestItem> items = new ArrayList<>();
 
     @OneToMany(mappedBy = "request", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PharmacyOffer> offers = new ArrayList<>();
+
+    @Column(name = "prescription_url")
+    private String prescriptionUrl;
 }

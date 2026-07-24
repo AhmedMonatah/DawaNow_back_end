@@ -13,6 +13,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
@@ -51,4 +53,6 @@ public class PharmacyOffer {
 
     @OneToMany(mappedBy = "offer", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PharmacyOfferItem> items = new ArrayList<>();
+
+    private BigDecimal totalPrice= BigDecimal.ZERO;
 }

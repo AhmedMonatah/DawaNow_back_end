@@ -10,6 +10,8 @@ public record UserResponse(
         String lastName,
         UserRole role,
         String homeAddress,
-        LocalDate dob
+        LocalDate dob,
+        Double Lattitude,
+        Double Longitude
 ) {
 }

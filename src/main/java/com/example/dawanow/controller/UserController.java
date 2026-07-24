@@ -1,5 +1,6 @@
 package com.example.dawanow.controller;
 
+import com.example.dawanow.dtos.request.UpdateLocationRequest;
 import com.example.dawanow.dtos.request.UpdateUserRequest;
 import com.example.dawanow.dtos.response.ApiResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
@@ -17,13 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -53,6 +48,23 @@ public class UserController {
     })
     public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser() {
         return ResponseEntity.ok(ApiResponse.success("Current user fetched", userService.getCurrentUser()));
+    }
+
+    @PatchMapping("/me/location")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(
+            summary = "Update current user's location",
+            description = "Updates the latitude and longitude of the authenticated user.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    public ResponseEntity<ApiResponse<UserResponse>> updateLocation(
+            @Valid @RequestBody UpdateLocationRequest request) {
+
+        UserResponse response = userService.updateCurrentLocation(request);
+
+        return ResponseEntity.ok(
+                ApiResponse.success("Location updated successfully", response)
+        );
     }
 
     @GetMapping
