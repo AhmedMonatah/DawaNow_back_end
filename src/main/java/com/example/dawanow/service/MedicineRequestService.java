@@ -70,6 +70,9 @@ public class MedicineRequestService {
 
         medicineRequest.setDeliveryAddress(request.deliveryAddress());
 
+        medicineRequest.setNotes(request.notes());
+
+        medicineRequest.setPaymentMethod(request.paymentMethod());
 
 
         if (prescription != null && !prescription.isEmpty()) {
@@ -216,7 +219,7 @@ public class MedicineRequestService {
                 && medicineRequest.getCustomer().getId().equals(currentUser.getId());
         boolean pharmacyReceivedRequest = currentUser instanceof Pharmacist pharmacist
                 && pharmacist.getPharmacy() != null
-                && medicineRequestRepository.existsByIdAndOffers_Pharmacy_Id(
+                && pharmacyAssignmentRepository.existsByMedicineRequest_IdAndPharmacy_Id(
                         medicineRequest.getId(),
                         pharmacist.getPharmacy().getId()
                 );

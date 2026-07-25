@@ -198,43 +198,43 @@ public class MedicineRequestController {
     }
 
 
-    @GetMapping("/pharmacy/{pharmacyId}")
-    @PreAuthorize("hasRole('PHARMACIST')")
-    @Operation(
-            summary = "Get requests sent to a pharmacy",
-            description = "Pharmacist only. Returns requests associated with the specified pharmacy through pharmacy "
-                    + "offers. The logged-in pharmacist must belong to that exact pharmacy.",
-            security = @SecurityRequirement(name = "basicAuth")
-    )
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200",
-                    useReturnTypeSchema = true,
-                    description = "Pharmacy requests fetched successfully with pagination metadata"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "401",
-                    description = "Authentication is required"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "403",
-                    description = "The logged-in user is not a pharmacist tied to this pharmacy"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "404",
-                    description = "Pharmacy not found"
-            )
-    })
-    public ResponseEntity<ApiResponse<PaginatedResponse<MedicineRequestResponse>>> getPharmacyRequests(
-            @Parameter(description = "Pharmacy ID", example = "1", required = true)
-            @PathVariable Long pharmacyId,
-            @ParameterObject @PageableDefault(size = 20) Pageable pageable
-    ) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Pharmacy medicine requests fetched",
-                medicineRequestService.getPharmacyRequests(pharmacyId, pageable)
-        ));
-    }
+//    @GetMapping("/pharmacy/{pharmacyId}")
+//    @PreAuthorize("hasRole('PHARMACIST')")
+//    @Operation(
+//            summary = "Get requests sent to a pharmacy",
+//            description = "Pharmacist only. Returns requests associated with the specified pharmacy through pharmacy "
+//                    + "offers. The logged-in pharmacist must belong to that exact pharmacy.",
+//            security = @SecurityRequirement(name = "basicAuth")
+//    )
+//    @ApiResponses({
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+//                    responseCode = "200",
+//                    useReturnTypeSchema = true,
+//                    description = "Pharmacy requests fetched successfully with pagination metadata"
+//            ),
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+//                    responseCode = "401",
+//                    description = "Authentication is required"
+//            ),
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+//                    responseCode = "403",
+//                    description = "The logged-in user is not a pharmacist tied to this pharmacy"
+//            ),
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+//                    responseCode = "404",
+//                    description = "Pharmacy not found"
+//            )
+//    })
+//    public ResponseEntity<ApiResponse<PaginatedResponse<MedicineRequestResponse>>> getPharmacyRequests(
+//            @Parameter(description = "Pharmacy ID", example = "1", required = true)
+//            @PathVariable Long pharmacyId,
+//            @ParameterObject @PageableDefault(size = 20) Pageable pageable
+//    ) {
+//        return ResponseEntity.ok(ApiResponse.success(
+//                "Pharmacy medicine requests fetched",
+//                medicineRequestService.getPharmacyRequests(pharmacyId, pageable)
+//        ));
+//    }
 
 
 

@@ -15,5 +15,7 @@ public interface PharmacyAssignmentRepository extends JpaRepository<PharmacyAssi
     @EntityGraph(attributePaths = {"medicineRequest"})
     Page<PharmacyAssignment> getPharmacyAssignmentsByPharmacy_Id(Long pharmacyId, Pageable pageable);
 
+    boolean existsByMedicineRequest_IdAndPharmacy_Id(Long requestId, Long pharmacyId);
+
     Optional<PharmacyAssignment> findByPharmacyIdAndMedicineRequestId(Long pharmacyId, Long medicineRequestId);
 }
