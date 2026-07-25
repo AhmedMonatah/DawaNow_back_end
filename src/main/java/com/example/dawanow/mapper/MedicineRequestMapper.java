@@ -14,6 +14,7 @@ public interface MedicineRequestMapper {
 
     @Mapping(target = "customerId", source = "customer.id")
     @Mapping(target = "customerName", source = "customer", qualifiedByName = "fullName")
+    @Mapping(target = "customerPhone", source = "customer.phoneNumber")
     MedicineRequestResponse toResponse(MedicineRequest request);
 
     @Mapping(target = "productId", source = "product.id")

@@ -8,6 +8,7 @@ public record MedicineRequestResponse(
         Long id,
         Long customerId,
         String customerName,
+        String customerPhone,
         Double deliveryLatitude,
         Double deliveryLongitude,
         String deliveryAddress,
