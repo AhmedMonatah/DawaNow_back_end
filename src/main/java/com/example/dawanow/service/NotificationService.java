@@ -75,4 +75,9 @@ public class NotificationService {
 
         sendToPharmacists(notification, pharmacistIds);
     }
+
+    @Transactional
+    void sendToPharmacy(Notification notification, Long pharmacyId) {
+        sendToPharmacies(notification, List.of(pharmacyId));
+    }
 }

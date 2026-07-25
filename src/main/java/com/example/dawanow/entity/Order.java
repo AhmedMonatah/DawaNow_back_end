@@ -45,6 +45,10 @@ public class Order {
     private Pharmacist pharmacist;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "request_id", nullable = false)
+    private MedicineRequest request;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "offer_id", nullable = false, unique = true)
     private PharmacyOffer offer;
 
