@@ -3,20 +3,9 @@ package com.example.dawanow.service;
 import com.example.dawanow.dtos.request.ConfirmSelectionRequest;
 import com.example.dawanow.dtos.response.ConfirmationResponse;
 import com.example.dawanow.dtos.response.OrderSummaryResponse;
-import com.example.dawanow.entity.Customer;
-import com.example.dawanow.entity.MedicineRequest;
-import com.example.dawanow.entity.OfferStatus;
-import com.example.dawanow.entity.Order;
-import com.example.dawanow.entity.OrderItem;
-import com.example.dawanow.entity.OrderStatus;
-import com.example.dawanow.entity.Pharmacist;
-import com.example.dawanow.entity.PharmacyOffer;
-import com.example.dawanow.entity.PharmacyOfferItem;
-import com.example.dawanow.entity.Product;
-import com.example.dawanow.entity.RequestItem;
-import com.example.dawanow.entity.RequestStatus;
-import com.example.dawanow.entity.User;
+import com.example.dawanow.entity.*;
 import com.example.dawanow.exception.ResourceNotFoundException;
+import com.example.dawanow.factory.NotificationFactory;
 import com.example.dawanow.repo.MedicineRequestRepository;
 import com.example.dawanow.repo.OrderRepository;
 import com.example.dawanow.repo.PharmacyOfferItemRepository;
@@ -49,6 +38,8 @@ public class MedicineRequestConfirmationService {
     private final OrderRepository orderRepository;
     private final CurrentUserProvider currentUserProvider;
     private final PharmacySelectionOptimizer selectionOptimizer;
+    private final NotificationService notificationService;
+    private final NotificationFactory notificationFactory;
 
     @Transactional
     public ConfirmationResponse confirm(Long requestId, ConfirmSelectionRequest selection) {
@@ -83,8 +74,16 @@ public class MedicineRequestConfirmationService {
         updateOfferStatuses(medicineRequest.getId(), optimizedItems);
         medicineRequest.setStatus(RequestStatus.COMPLETED);
 
+
+
         orderRepository.saveAll(orders);
         orderRepository.flush();
+
+        orders.forEach(order -> notificationService.sendToPharmacy(
+                notificationFactory.orderCreated(order),
+                order.getId()
+        ));
+
 
         List<OrderSummaryResponse> summaries = orders.stream()
                 .sorted(Comparator.comparing(order -> order.getPharmacy().getId()))
@@ -174,6 +173,7 @@ public class MedicineRequestConfirmationService {
             order.setDeliveryLongitude(medicineRequest.getDeliveryLongitude());
             order.setStatus(OrderStatus.PENDING);
             order.setDate(LocalDate.now());
+            order.setRequest(medicineRequest);
 
             BigDecimal total = BigDecimal.ZERO;
             for (PharmacyOfferItem selectedItem : pharmacyItems) {

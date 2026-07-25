@@ -5,6 +5,9 @@ public record MedicineRequestItemResponse(
         Long productId,
         String imageUrl,
         String productName,
+        String strength,
+        String packSize,
+        String form,
         Long quantity,
         Double unitPrice
 ) {

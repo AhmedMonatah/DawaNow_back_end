@@ -41,7 +41,7 @@ public class Notification {
     public enum Category {
         PHARMACY_INVITATION,
         REQUEST_IN_AREA,
-        OFFER_ACCEPTED
+        ORDER_CREATED,
     }
 
     @Id

@@ -1,13 +1,16 @@
 package com.example.dawanow.factory;
 
 import com.example.dawanow.entity.MedicineRequest;
+import com.example.dawanow.entity.Order;
 import com.example.dawanow.entity.Pharmacy;
 import com.example.dawanow.entity.PharmacyOffer;
 import com.example.dawanow.entity.notification.Notification;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
+@Slf4j
 @Component
 public class NotificationFactory {
 
@@ -29,12 +32,14 @@ public class NotificationFactory {
         );
     }
 
-    public Notification offerAccepted(PharmacyOffer offer) {
+    public Notification orderCreated(Order order) {
+        log.info("Creating notification for order created: {}", order.getId());
+        log.info("Request: {}", order.getRequest());
         return new Notification(
-                Notification.Category.OFFER_ACCEPTED,
-                "Offer accepted",
-                "Your offer on request #%d was accepted".formatted(offer.getRequest().getId()),
-                Map.of("offerId", offer.getId(), "requestId", offer.getRequest().getId())
+                Notification.Category.ORDER_CREATED,
+                "NEW Order Created",
+                "Your offer on request #%d was accepted".formatted(order.getRequest().getId()),
+                Map.of("orderID", order.getId(), "requestId", order.getRequest().getId())
         );
     }
 }
