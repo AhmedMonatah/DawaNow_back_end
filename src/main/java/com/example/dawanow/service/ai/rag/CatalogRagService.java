@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.Normalizer;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,11 +38,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Order(100)
 public class CatalogRagService implements ApplicationRunner {
 
     private final ProductRepository productRepository;
@@ -87,8 +90,16 @@ public class CatalogRagService implements ApplicationRunner {
             try {
                 embedMissing(missing, vectors);
             } catch (RuntimeException exception) {
+                Throwable root = exception;
+                while (root.getCause() != null && root.getCause() != root) {
+                    root = root.getCause();
+                }
                 lastError = exception.getMessage();
-                log.warn("Catalog semantic index is degraded: {}", exception.getMessage());
+                log.warn(
+                        "Catalog semantic index is degraded: {} (cause: {})",
+                        exception.getMessage(),
+                        root.getMessage()
+                );
             }
         }
 
@@ -211,12 +222,28 @@ public class CatalogRagService implements ApplicationRunner {
     }
 
     private void embedMissing(List<CatalogDocument> missing, Map<Long, float[]> vectors) {
-        int batchSize = properties.getRetrieval().getEmbeddingBatchSize();
+        int batchSize = Math.min(32, properties.getRetrieval().getEmbeddingBatchSize());
+        boolean paceForCohere = "cohere".equalsIgnoreCase(aiClient.embeddingProvider());
         for (int start = 0; start < missing.size(); start += batchSize) {
             List<CatalogDocument> batch = missing.subList(start, Math.min(start + batchSize, missing.size()));
-            List<float[]> generated = aiClient.embedDocuments(
-                    batch.stream().map(CatalogDocument::embeddingText).toList()
+            List<String> texts = batch.stream().map(CatalogDocument::embeddingText).toList();
+            if (paceForCohere && start > 0) {
+                Duration pause = aiClient.coherePaceDelay(texts);
+                log.info("Pacing Cohere embeddings for {} to stay under trial token limits", pause);
+                try {
+                    Thread.sleep(pause);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while pacing Cohere embeddings", exception);
+                }
+            }
+            log.info(
+                    "Embedding catalog batch {}-{} of {}",
+                    start + 1,
+                    start + batch.size(),
+                    missing.size()
             );
+            List<float[]> generated = aiClient.embedDocuments(texts);
             List<ProductEmbedding> entities = new ArrayList<>(batch.size());
             for (int index = 0; index < batch.size(); index++) {
                 CatalogDocument document = batch.get(index);

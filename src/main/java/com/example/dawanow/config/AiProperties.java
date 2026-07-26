@@ -31,13 +31,15 @@ public class AiProperties {
     private String apiKey = "";
 
     @NotBlank
-    private String embeddingProvider = "ollama";
+    private String embeddingProvider = "cohere";
 
     @NotBlank
-    private String embeddingBaseUrl = "http://host.docker.internal:11434";
+    private String embeddingBaseUrl = "https://api.cohere.com/v2";
 
     @NotBlank
-    private String embeddingModel = "nomic-embed-text:latest";
+    private String embeddingModel = "embed-multilingual-v3.0";
+
+    private String embeddingApiKey = "";
 
     @NotBlank
     private String generationModel = "openai.gpt-oss-20b-1:0";
@@ -56,8 +58,8 @@ public class AiProperties {
         private boolean initializeOnStartup = true;
 
         @Min(1)
-        @Max(256)
-        private int embeddingBatchSize = 64;
+        @Max(96)
+        private int embeddingBatchSize = 32;
 
         @Min(1)
         @Max(20)

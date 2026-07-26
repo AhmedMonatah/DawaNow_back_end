@@ -42,7 +42,8 @@ public class PrescriptionAiConfig {
                 restClient,
                 new ObjectMapper(),
                 properties.getEndpointUrl(),
-                properties.getModel()
+                properties.getModel(),
+                properties.getApiKey()
         );
     }
 }

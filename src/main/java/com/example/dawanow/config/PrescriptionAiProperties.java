@@ -31,6 +31,7 @@ public class PrescriptionAiProperties {
 
         private String endpointUrl = "http://apiaccess.iti.net.eg/api/v1/student/multimodal-chat";
         private String model = "qwen.qwen3-vl-235b-a22b";
+        private String apiKey = "";
         private Duration connectTimeout = Duration.ofSeconds(5);
         private Duration readTimeout = Duration.ofSeconds(60);
 
@@ -48,6 +49,14 @@ public class PrescriptionAiProperties {
 
         public void setModel(String model) {
             this.model = model;
+        }
+
+        public String getApiKey() {
+            return apiKey;
+        }
+
+        public void setApiKey(String apiKey) {
+            this.apiKey = apiKey;
         }
 
         public Duration getConnectTimeout() {

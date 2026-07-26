@@ -72,6 +72,9 @@ public class StudentBedrockGatewayClient {
             return List.of();
         }
 
+        if ("cohere".equalsIgnoreCase(properties.getEmbeddingProvider())) {
+            return embedWithCohere(texts, inputType);
+        }
         if ("ollama".equalsIgnoreCase(properties.getEmbeddingProvider())) {
             return embedWithOllama(texts, inputType);
         }
@@ -82,6 +85,143 @@ public class StudentBedrockGatewayClient {
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "Unsupported embedding provider: " + properties.getEmbeddingProvider()
         );
+    }
+
+    private static final int COHERE_MAX_TEXTS_PER_REQUEST = 32;
+    private static final int COHERE_MAX_TEXT_CHARS = 800;
+    private static final int COHERE_MAX_ATTEMPTS = 10;
+    private static final long COHERE_TRIAL_TPM_LIMIT = 90_000L;
+
+    private List<float[]> embedWithCohere(List<String> texts, String inputType) {
+        requireCohereConfigured();
+
+        List<float[]> embeddings = new ArrayList<>(texts.size());
+        try {
+            for (int start = 0; start < texts.size(); start += COHERE_MAX_TEXTS_PER_REQUEST) {
+                if (start > 0) {
+                    // Trial keys are limited to ~100k tokens/minute; pace between chunked calls.
+                    Thread.sleep(Duration.ofSeconds(2));
+                }
+                List<String> batch = texts.subList(
+                        start,
+                        Math.min(start + COHERE_MAX_TEXTS_PER_REQUEST, texts.size())
+                );
+                embeddings.addAll(embedCohereBatch(batch, inputType));
+            }
+            return List.copyOf(embeddings);
+        } catch (RestClientException | IllegalArgumentException | JacksonException | InterruptedException exception) {
+            if (exception instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            log.warn(
+                    "Cohere embed failed for {} text(s): {}",
+                    texts.size(),
+                    summarizeHttpError(exception)
+            );
+            throw unavailable("Text embedding", properties.getEmbeddingModel(), exception);
+        }
+    }
+
+    private List<float[]> embedCohereBatch(List<String> texts, String inputType)
+            throws JacksonException, InterruptedException {
+        List<String> truncated = texts.stream()
+                .map(this::truncateForCohere)
+                .toList();
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("model", properties.getEmbeddingModel());
+        request.put("texts", truncated);
+        request.put("input_type", inputType);
+        request.put("embedding_types", List.of("float"));
+
+        String requestBody = objectMapper.writeValueAsString(request);
+        String response = postCohere("/embed", requestBody);
+        return parseEmbeddings(response, texts.size());
+    }
+
+    private String postCohere(String path, String requestBody) throws InterruptedException {
+        URI endpoint = cohereEndpoint(path);
+        RestClientException lastException = null;
+
+        for (int attempt = 1; attempt <= COHERE_MAX_ATTEMPTS; attempt++) {
+            try {
+                return client.post()
+                        .uri(endpoint)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getEmbeddingApiKey().trim())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(requestBody)
+                        .retrieve()
+                        .body(String.class);
+            } catch (org.springframework.web.client.RestClientResponseException exception) {
+                lastException = exception;
+                int status = exception.getStatusCode().value();
+                if ((status != 429 && status != 500 && status != 503) || attempt == COHERE_MAX_ATTEMPTS) {
+                    throw exception;
+                }
+                Duration delay = cohereRetryDelay(exception, attempt);
+                log.warn(
+                        "Cohere embed rate-limited/unavailable (HTTP {}), retrying in {} (attempt {}/{})",
+                        status,
+                        delay,
+                        attempt,
+                        COHERE_MAX_ATTEMPTS
+                );
+                Thread.sleep(delay);
+            }
+        }
+        throw lastException;
+    }
+
+    private Duration cohereRetryDelay(
+            org.springframework.web.client.RestClientResponseException exception,
+            int attempt
+    ) {
+        String body = exception.getResponseBodyAsString();
+        if (body != null && body.toLowerCase().contains("token")) {
+            // Trial TPM windows are per minute; wait out the full window.
+            return Duration.ofSeconds(65);
+        }
+        return Duration.ofSeconds(Math.min(30, 3L * attempt));
+    }
+
+    public long estimateCohereTokens(List<String> texts) {
+        long chars = 0;
+        for (String text : texts) {
+            chars += truncateForCohere(text).length();
+        }
+        // Mixed Arabic/English is denser than English-only; bias high.
+        return Math.max(1L, (chars + 2) / 3);
+    }
+
+    public Duration coherePaceDelay(List<String> texts) {
+        long tokens = estimateCohereTokens(texts);
+        long millis = Math.max(1_000L, (tokens * 60_000L) / COHERE_TRIAL_TPM_LIMIT);
+        return Duration.ofMillis(millis);
+    }
+
+    private String truncateForCohere(String text) {
+        if (text == null) {
+            return "";
+        }
+        String cleaned = text.trim();
+        if (cleaned.length() <= COHERE_MAX_TEXT_CHARS) {
+            return cleaned;
+        }
+        return cleaned.substring(0, COHERE_MAX_TEXT_CHARS);
+    }
+
+    private String summarizeHttpError(Exception exception) {
+        if (exception instanceof org.springframework.web.client.RestClientResponseException responseException) {
+            String body = responseException.getResponseBodyAsString();
+            if (body == null) {
+                body = "";
+            }
+            String cleaned = body.replaceAll("\\s+", " ").trim();
+            if (cleaned.length() > 400) {
+                cleaned = cleaned.substring(0, 400) + "...";
+            }
+            return "HTTP " + responseException.getStatusCode().value() + " body=" + cleaned;
+        }
+        return exception.getMessage();
     }
 
     private List<float[]> embedWithOllama(List<String> texts, String inputType) {
@@ -232,7 +372,7 @@ public class StudentBedrockGatewayClient {
         if (!node.isObject()) {
             return node;
         }
-        for (String field : List.of("float", "floats", "embeddings")) {
+        for (String field : List.of("float", "floats", "embeddings", "values")) {
             JsonNode candidate = node.get(field);
             if (candidate != null) {
                 return candidate;
@@ -258,6 +398,9 @@ public class StudentBedrockGatewayClient {
                 vectorNode = item.get("embedding");
                 if (vectorNode == null) {
                     vectorNode = item.get("vector");
+                }
+                if (vectorNode == null) {
+                    vectorNode = item.get("values");
                 }
                 if (vectorNode != null) {
                     vectorNode = unwrapEmbeddingType(vectorNode);
@@ -414,6 +557,10 @@ public class StudentBedrockGatewayClient {
         return endpoint(properties.getEmbeddingBaseUrl(), path, "AI_EMBEDDING_BASE_URL");
     }
 
+    private URI cohereEndpoint(String path) {
+        return endpoint(properties.getEmbeddingBaseUrl(), path, "AI_EMBEDDING_BASE_URL");
+    }
+
     private URI endpoint(String configuredBaseUrl, String path, String settingName) {
         String baseUrl = configuredBaseUrl.trim().replaceAll("/+$", "");
         URI uri = URI.create(baseUrl + path);
@@ -439,6 +586,15 @@ public class StudentBedrockGatewayClient {
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
                     "Student Bedrock Gateway URL is not configured; set SBG_BASE_URL"
+            );
+        }
+    }
+
+    private void requireCohereConfigured() {
+        if (properties.getEmbeddingApiKey() == null || properties.getEmbeddingApiKey().isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Cohere API key is not configured; set COHERE_API_KEY"
             );
         }
     }

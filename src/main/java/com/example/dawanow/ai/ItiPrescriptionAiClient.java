@@ -45,12 +45,14 @@ public class ItiPrescriptionAiClient implements PrescriptionAiClient {
     private final ObjectMapper objectMapper;
     private final String endpointUrl;
     private final String model;
+    private final String configuredApiKey;
 
     public ItiPrescriptionAiClient(
             RestClient restClient,
             ObjectMapper objectMapper,
             String endpointUrl,
-            String model
+            String model,
+            String configuredApiKey
     ) {
         if (endpointUrl == null || endpointUrl.isBlank()) {
             throw new IllegalArgumentException("ITI prescription AI endpoint configuration is invalid");
@@ -62,28 +64,36 @@ public class ItiPrescriptionAiClient implements PrescriptionAiClient {
         this.objectMapper = objectMapper;
         this.endpointUrl = endpointUrl;
         this.model = model;
+        this.configuredApiKey = configuredApiKey == null ? "" : configuredApiKey.trim();
         log.info("ITI prescription AI client configured: endpointUrl={} model={}", endpointUrl, model);
     }
 
     @Override
     public ExtractedPrescription analyze(byte[] image, String contentType, String language, String apiKey) {
-        return requestAnalysis(image, contentType, apiKey, PROMPT);
+        return requestAnalysis(image, contentType, resolveApiKey(apiKey), PROMPT);
     }
 
     @Override
     public java.util.Optional<ExtractedMedicine> analyzeMedicineImage(
             byte[] image, String contentType, String language, String apiKey
     ) {
-        ExtractedPrescription extracted = requestAnalysis(image, contentType, apiKey, MEDICINE_IMAGE_PROMPT);
+        ExtractedPrescription extracted = requestAnalysis(image, contentType, resolveApiKey(apiKey), MEDICINE_IMAGE_PROMPT);
         if (extracted.medicines().size() > 1) {
             throw invalidResponse();
         }
         return extracted.medicines().stream().findFirst();
     }
 
+    private String resolveApiKey(String requestApiKey) {
+        if (requestApiKey != null && !requestApiKey.isBlank()) {
+            return requestApiKey.trim();
+        }
+        return configuredApiKey;
+    }
+
     private ExtractedPrescription requestAnalysis(byte[] image, String contentType, String apiKey, String prompt) {
         if (apiKey == null || apiKey.isBlank()) {
-            throw failure(HttpStatus.BAD_REQUEST, "X-AI-Api-Key header is required");
+            throw failure(HttpStatus.SERVICE_UNAVAILABLE, "SBG_API_KEY is not configured");
         }
 
         try {
