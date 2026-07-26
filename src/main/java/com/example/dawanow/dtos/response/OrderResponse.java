@@ -14,8 +14,7 @@ public record OrderResponse(
         BigDecimal totalPrice,
         Double deliveryLatitude,
         Double deliveryLongitude,
-        OrderStatus status,
-        LocalDate date,
+        LocalDate createdAt,
         List<OrderItemResponse> items
 ) {
 }

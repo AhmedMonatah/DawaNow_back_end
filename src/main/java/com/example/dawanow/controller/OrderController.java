@@ -44,58 +44,6 @@ public class OrderController {
 
     private final OrderService orderService;
 
-    @PostMapping
-    @PreAuthorize("hasRole('PHARMACIST')")
-    @Operation(
-            summary = "Create an order",
-            description = "Pharmacist only. Creates one order from an offer. The order's pharmacist is "
-                    + "taken from the pharmacy offer entity. Quantities and prices are copied from accepted offer "
-                    + "items, and the total is calculated by the backend.",
-            security = @SecurityRequirement(name = "basicAuth")
-    )
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200",
-                    useReturnTypeSchema = true,
-                    description = "Order created successfully"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "400",
-                    description = "Offer is not accepted, has no accepted items, contains invalid values, or already has an order",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = INVALID_ORDER_EXAMPLE)
-                    )
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "401",
-                    description = "Authentication is required"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "403",
-                    description = "Pharmacist role is required"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "404",
-                    description = "Offer not found",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = OFFER_NOT_FOUND_EXAMPLE)
-                    )
-            )
-    })
-    public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "Order details including the accepted offer",
-                    required = true
-            )
-            @Valid @RequestBody CreateOrderRequest request
-    ) {
-        return ResponseEntity.ok(ApiResponse.success("Order created", orderService.createOrder(request)));
-    }
-
     @GetMapping
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(
@@ -129,7 +77,7 @@ public class OrderController {
     @Operation(
             summary = "Get pharmacy orders",
             description = "Returns paginated orders for a specific pharmacy. Access is restricted to the pharmacist "
-                    + "registered as that pharmacy's adminPharmacist or a system user with the ADMIN role.",
+                    + "registered as that pharmacy or a system user with the ADMIN role.",
             security = @SecurityRequirement(name = "basicAuth")
     )
     @ApiResponses({
@@ -144,7 +92,7 @@ public class OrderController {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "403",
-                    description = "The current pharmacist is not this pharmacy's admin pharmacist, or the user is not a system admin"
+                    description = "The current pharmacist is not at this pharmacy admin, or the user is not a system admin"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",

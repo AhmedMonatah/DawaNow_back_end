@@ -68,6 +68,12 @@ public class UserService {
         if (request.dob() != null) {
             user.setDob(request.dob());
         }
+        if (request.deliveryLatitude() != null) {
+            user.setDeliveryLatitude(request.deliveryLatitude());
+        }
+        if (request.deliveryLongitude() != null) {
+            user.setDeliveryLongitude(request.deliveryLongitude());
+        }
         return userMapper.toResponse(user);
     }
 

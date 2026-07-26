@@ -14,6 +14,7 @@ public interface OrderMapper {
     @Mapping(target = "pharmacyId", source = "pharmacy.id")
     @Mapping(target = "pharmacistId", source = "pharmacist.id")
     @Mapping(target = "offerId", source = "offer.id")
+    @Mapping(target="createdAt", source="date")
     OrderResponse toResponse(Order order);
 
     @Mapping(target = "productId", source = "product.id")

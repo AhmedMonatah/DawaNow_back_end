@@ -34,7 +34,6 @@ public class PharmacyOfferService {
     private final RequestItemRepository requestItemRepository;
     private final PharmacyOfferRepository pharmacyOfferRepository;
     private final PharmacyOfferMapper pharmacyOfferMapper;
-    private final OrderService orderService;
 
     public PaginatedResponse<PharmacyOfferResponse> getOffersByPharmacy(Long pharmacyId, Pageable pageable) {
         return PaginatedResponse.empty(pageable);
@@ -95,8 +94,6 @@ public class PharmacyOfferService {
                 pharmacyOfferItem.setAlternative(true);
             }
             offer.getItems().add(pharmacyOfferItem);
-
-
         }
         //offer.setTotalPrice(totalOfferPrice);
         pharmacyOfferRepository.save(offer);
@@ -119,58 +116,6 @@ public class PharmacyOfferService {
     public PharmacyOfferResponse getOfferById(Long id) {
         PharmacyOffer pharmacyOffer = pharmacyOfferRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Offer Not Found"));
         return pharmacyOfferMapper.toResponse(pharmacyOffer);
-    }
-
-
-    @Transactional
-    public OrderResponse acceptOffer(Long id) throws AccessDeniedException, BadRequestException {
-
-
-        PharmacyOffer pharmacyOffer = pharmacyOfferRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Offer Not Found"));
-        if (pharmacyOffer.getRequest().getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new BadRequestException("Request has expired");
-        }
-
-        User customer = currentUserProvider.get();
-
-        if (!pharmacyOffer.getRequest().getCustomer().getId().equals(customer.getId())) {
-            throw new AccessDeniedException("You are not allowed to accept this offer");
-        }
-
-        if (pharmacyOffer.getStatus() != OfferStatus.PENDING) {
-            throw new BadRequestException("This offer has already been processed");
-        }
-
-        pharmacyOffer.setStatus(OfferStatus.ACCEPTED);
-        pharmacyOffer.getRequest().setStatus(RequestStatus.COMPLETED);
-
-        rejectOtherOffers(pharmacyOffer.getRequest().getId(), id);
-
-        OrderResponse orderResponse = orderService.createOrder(pharmacyOffer);
-        return orderResponse;
-    }
-
-
-    @Transactional
-    public void rejectAllOffers(Long medicineRequestId) throws BadRequestException {
-
-        List<PharmacyOffer> pharmacyOfferList = pharmacyOfferRepository.findByRequestId(medicineRequestId);
-        if(pharmacyOfferList.isEmpty()){
-            throw new BadRequestException("No offers found for this request");
-        }
-        for (PharmacyOffer pharmacyOffer : pharmacyOfferList) {
-            pharmacyOffer.setStatus(OfferStatus.REJECTED);
-        }
-    }
-
-    // Helper method to reject other offers
-    private void rejectOtherOffers(Long requestId, Long acceptedOfferId) {
-        List<PharmacyOffer> offers = pharmacyOfferRepository.findByRequestId(requestId);
-        for (PharmacyOffer offer : offers) {
-            if (!offer.getId().equals(acceptedOfferId) && offer.getStatus() == OfferStatus.PENDING) {
-                offer.setStatus(OfferStatus.REJECTED);
-            }
-        }
     }
     
 }
