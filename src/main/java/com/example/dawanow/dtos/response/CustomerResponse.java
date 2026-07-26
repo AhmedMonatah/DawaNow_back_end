@@ -7,6 +7,8 @@ public record CustomerResponse(
         String email,
         String firstName,
         String lastName,
+        Double deliveryLatitude,
+        Double deliveryLongitude,
         String homeAddress,
         LocalDate dob,
         String phoneNumber

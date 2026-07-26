@@ -6,6 +6,8 @@ public record UpdateCustomerProfileRequest(
         String firstName,
         String lastName,
         String homeAddress,
-        LocalDate dob
+        LocalDate dob,
+        Double deliveryLatitude,
+        Double deliveryLongitude
 ) {
 }

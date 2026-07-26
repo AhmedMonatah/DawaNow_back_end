@@ -33,7 +33,15 @@ public class CustomerService {
     public CustomerResponse updateCurrentCustomer(UpdateCustomerProfileRequest request) {
         Customer customer = getCurrentCustomerEntity();
         userService.updateUser(customer.getId(),
-                new UpdateUserRequest(null, request.firstName(), request.lastName(), request.homeAddress(), request.dob()));
+                new UpdateUserRequest(
+                        null,
+                        request.firstName(),
+                        request.lastName(),
+                        request.homeAddress(),
+                        request.dob(),
+                        request.deliveryLatitude(),
+                        request.deliveryLongitude()
+                ));
         return customerMapper.toResponse(customer);
     }
 

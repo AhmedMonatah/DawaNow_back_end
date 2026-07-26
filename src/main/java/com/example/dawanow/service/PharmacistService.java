@@ -38,7 +38,7 @@ public class PharmacistService {
     public PharmacistResponse updateCurrentPharmacist(UpdatePharmacistProfileRequest request) {
         Pharmacist pharmacist = currentPharmacistProvider.get();
         userService.updateUser(pharmacist.getId(),
-                new UpdateUserRequest(null, request.firstName(), request.lastName(), request.homeAddress(), request.dob()));
+                new UpdateUserRequest(null, request.firstName(), request.lastName(), request.homeAddress(), request.dob(),null, null));
         return pharmacistMapper.toResponse(pharmacist);
     }
 
