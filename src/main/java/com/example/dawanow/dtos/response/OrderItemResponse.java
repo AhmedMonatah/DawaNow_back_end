@@ -8,6 +8,7 @@ public record OrderItemResponse(
         String productName,
         String imageUrl,
         Long quantity,
-        BigDecimal unitPrice
+        BigDecimal unitPrice,
+        BigDecimal totalPrice
 ) {
 }
