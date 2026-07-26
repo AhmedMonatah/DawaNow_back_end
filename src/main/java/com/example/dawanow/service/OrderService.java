@@ -24,11 +24,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -108,10 +110,15 @@ public class OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
         User currentUser = currentUserProvider.get();
 
-        boolean ownsOrder = currentUser instanceof Customer
+        log.info("Current user: {} with role {}", currentUser.getId(), currentUser.getRole());
+        log.info("Order user: {} with role {}", order.getUser().getId(), order.getUser().getRole());
+
+        boolean ownsOrder = currentUser.getRole() == UserRole.CUSTOMER
                 && order.getUser().getId().equals(currentUser.getId());
+        log.info("{} == {} ? {}", order.getUser().getId(), currentUser.getId(), ownsOrder);
         boolean pharmacistCanView = isPharmacistAtPharmacy(currentUser, order.getPharmacy());
         if (!isApplicationAdmin(currentUser) && !ownsOrder && !pharmacistCanView) {
+            log.warn("Access denied for user {} to view order {}", currentUser.getId(), order.getId());
             throw new AccessDeniedException("You are not allowed to view this order");
         }
 
