@@ -1,24 +1,17 @@
 package com.example.dawanow.service;
 
+import com.example.dawanow.controller.CatalogAiController.ProductMatchResponse;
 import com.example.dawanow.dtos.ai.ExtractedMedicine;
 import com.example.dawanow.dtos.response.PrescriptionCandidateResponse;
 import com.example.dawanow.dtos.response.PrescriptionMatchStatus;
 import com.example.dawanow.dtos.response.PrescriptionMedicineResponse;
 import com.example.dawanow.dtos.response.ProductResponse;
-import com.example.dawanow.entity.Product;
-import com.example.dawanow.entity.ProductTranslation;
-import com.example.dawanow.repo.ProductRepository;
-import com.example.dawanow.repo.ProductTranslationRepository;
-import com.example.dawanow.util.MedicineTextNormalizer;
-import com.example.dawanow.mapper.ProductMapper;
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Comparator;
+import com.example.dawanow.service.ai.rag.CatalogRagService;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -27,135 +20,40 @@ public class PrescriptionProductMatchingService {
     private static final double MIN_READABLE_CONFIDENCE = 0.5;
     private static final int MAX_CANDIDATES = 3;
 
-    private final ProductRepository productRepository;
-    private final ProductTranslationRepository productTranslationRepository;
-    private final MedicineTextNormalizer normalizer;
-    private final ProductMapper productMapper;
+    private final CatalogRagService ragService;
 
-    @Transactional(readOnly = true)
     public List<ProductResponse> findTopProductsByMedicineName(String medicineName, String language) {
-        String normalizedName = normalizer.normalizeName(medicineName);
-        if (normalizedName.isEmpty()) {
+        if (!StringUtils.hasText(medicineName)) {
             return List.of();
         }
 
-        ExtractedMedicine extracted = new ExtractedMedicine(
-                medicineName, medicineName, null, null, 1.0
-        );
-        List<CatalogProduct> catalog = loadCatalog(language);
-        List<CatalogProduct> exactMatches = catalog.stream()
-                .filter(product -> normalizedName.equals(normalizer.normalizeName(product.productName())))
-                .toList();
-        List<CatalogProduct> matches = exactMatches.isEmpty()
-                ? catalog.stream()
-                        .filter(product -> {
-                            String productName = normalizer.normalizeName(product.productName());
-                            return productName.contains(normalizedName) || normalizedName.contains(productName);
-                        })
-                        .toList()
-                : exactMatches;
-
-        return matches.stream()
-                .sorted(candidateComparator(extracted))
-                .limit(MAX_CANDIDATES)
-                .map(CatalogProduct::productResponse)
+        return ragService.search(medicineName.trim(), language, MAX_CANDIDATES)
+                .matches()
+                .stream()
+                .map(ProductMatchResponse::product)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
     public PrescriptionMedicineResponse match(ExtractedMedicine medicine, String language) {
         if (medicine == null
                 || medicine.confidence() < MIN_READABLE_CONFIDENCE
-                || normalizer.normalizeName(medicine.name()).isEmpty()) {
+                || !StringUtils.hasText(medicine.name())) {
             return response(medicine, PrescriptionMatchStatus.UNREADABLE, List.of());
         }
 
-        List<CatalogProduct> catalog = loadCatalog(language);
-        String extractedName = normalizer.normalizeName(medicine.name());
-        List<CatalogProduct> exactNameMatches = catalog.stream()
-                .filter(product -> extractedName.equals(normalizer.normalizeName(product.productName())))
-                .toList();
+        List<ProductMatchResponse> matches = ragService.search(searchQuery(medicine), language, MAX_CANDIDATES)
+                .matches();
 
-        if (exactNameMatches.isEmpty()) {
-            List<CatalogProduct> suggestions = catalog.stream()
-                    .filter(product -> {
-                        String productName = normalizer.normalizeName(product.productName());
-                        return productName.contains(extractedName) || extractedName.contains(productName);
-                    })
-                    .sorted(candidateComparator(medicine))
-                    .limit(MAX_CANDIDATES)
-                    .toList();
-            return response(medicine, PrescriptionMatchStatus.NOT_FOUND, suggestions);
-        }
-
-        List<CatalogProduct> compatible = new ArrayList<>(exactNameMatches);
-        String extractedStrength = normalizer.normalizeStrength(medicine.strength());
-        if (!extractedStrength.isEmpty()) {
-            compatible = compatible.stream()
-                    .filter(product -> extractedStrength.equals(normalizer.normalizeStrength(product.strength())))
-                    .toList();
-            if (compatible.isEmpty()) {
-                return response(
-                        medicine,
-                        PrescriptionMatchStatus.NEEDS_REVIEW,
-                        exactNameMatches.stream().sorted(candidateComparator(medicine)).limit(MAX_CANDIDATES).toList()
-                );
-            }
-        }
-
-        String extractedForm = normalizer.normalizeForm(medicine.form());
-        if (!extractedForm.isEmpty()) {
-            List<CatalogProduct> formMatches = compatible.stream()
-                    .filter(product -> extractedForm.equals(normalizer.normalizeForm(product.form())))
-                    .toList();
-            if (formMatches.isEmpty()) {
-                return response(
-                        medicine,
-                        PrescriptionMatchStatus.NEEDS_REVIEW,
-                        compatible.stream().sorted(candidateComparator(medicine)).limit(MAX_CANDIDATES).toList()
-                );
-            }
-            compatible = formMatches;
-        }
-
-        PrescriptionMatchStatus status = compatible.size() == 1
-                ? PrescriptionMatchStatus.MATCHED
-                : PrescriptionMatchStatus.NEEDS_REVIEW;
-        return response(
-                medicine,
-                status,
-                compatible.stream().sorted(candidateComparator(medicine)).limit(MAX_CANDIDATES).toList()
-        );
-    }
-
-    private List<CatalogProduct> loadCatalog(String language) {
-        if ("ar".equals(language)) {
-            return productTranslationRepository.findAllByLang("ar").stream()
-                    .map(this::toCatalogProduct)
-                    .toList();
-        }
-        return productRepository.findAll().stream().map(this::toCatalogProduct).toList();
-    }
-
-    private Comparator<CatalogProduct> candidateComparator(ExtractedMedicine medicine) {
-        String strength = normalizer.normalizeStrength(medicine.strength());
-        String form = normalizer.normalizeForm(medicine.form());
-        return Comparator
-                .comparing((CatalogProduct product) -> !strength.isEmpty()
-                        && strength.equals(normalizer.normalizeStrength(product.strength())))
-                .reversed()
-                .thenComparing(
-                        (CatalogProduct product) -> !form.isEmpty()
-                                && form.equals(normalizer.normalizeForm(product.form())),
-                        Comparator.reverseOrder()
-                )
-                .thenComparing(CatalogProduct::id);
+        PrescriptionMatchStatus status = matches.isEmpty()
+                ? PrescriptionMatchStatus.NOT_FOUND
+                : matchStatus(matches);
+        return response(medicine, status, matches);
     }
 
     private PrescriptionMedicineResponse response(
             ExtractedMedicine medicine,
             PrescriptionMatchStatus status,
-            List<CatalogProduct> candidates
+            List<ProductMatchResponse> candidates
     ) {
         return new PrescriptionMedicineResponse(
                 UUID.randomUUID(),
@@ -169,7 +67,28 @@ public class PrescriptionProductMatchingService {
         );
     }
 
-    private PrescriptionCandidateResponse toResponse(CatalogProduct product) {
+    private PrescriptionMatchStatus matchStatus(List<ProductMatchResponse> matches) {
+        if (matches.size() == 1 && matches.getFirst().score() >= 0.95) {
+            return PrescriptionMatchStatus.MATCHED;
+        }
+        return PrescriptionMatchStatus.NEEDS_REVIEW;
+    }
+
+    private String searchQuery(ExtractedMedicine medicine) {
+        StringBuilder query = new StringBuilder(medicine.name().trim());
+        appendIfPresent(query, medicine.strength());
+        appendIfPresent(query, medicine.form());
+        return query.toString();
+    }
+
+    private void appendIfPresent(StringBuilder query, String value) {
+        if (StringUtils.hasText(value)) {
+            query.append(' ').append(value.trim());
+        }
+    }
+
+    private PrescriptionCandidateResponse toResponse(ProductMatchResponse match) {
+        ProductResponse product = match.product();
         return new PrescriptionCandidateResponse(
                 product.id(),
                 product.name(),
@@ -178,32 +97,5 @@ public class PrescriptionProductMatchingService {
                 product.price(),
                 product.imageUrl()
         );
-    }
-
-    private CatalogProduct toCatalogProduct(Product product) {
-        return new CatalogProduct(
-                product.getId(), product.getName(), product.getProductName(), product.getStrength(),
-                product.getForm(), product.getPrice(), product.getImageUrl(), productMapper.toResponse(product)
-        );
-    }
-
-    private CatalogProduct toCatalogProduct(ProductTranslation translation) {
-        Product product = translation.getProduct();
-        return new CatalogProduct(
-                product.getId(), translation.getName(), translation.getProductName(), translation.getStrength(),
-                translation.getForm(), product.getPrice(), product.getImageUrl(), productMapper.toResponse(translation)
-        );
-    }
-
-    private record CatalogProduct(
-            Long id,
-            String name,
-            String productName,
-            String strength,
-            String form,
-            BigDecimal price,
-            String imageUrl,
-            ProductResponse productResponse
-    ) {
     }
 }
