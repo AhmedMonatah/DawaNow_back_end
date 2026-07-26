@@ -160,6 +160,15 @@ public class MedicineRequestService {
     @Transactional
     public MedicineRequestResultResponse getMedicineRequestResult(Long medicineRequestId){
         MedicineRequest medicineRequest = medicineRequestRepository.findById(medicineRequestId).orElseThrow(()->new ResourceNotFoundException("Medicine Request not found"));
+        if (!medicineRequest.getCustomer().getId().equals(currentUserProvider.get().getId())) {
+            throw new AccessDeniedException("You are not allowed to view this medicine request result");
+        }
+        if (medicineRequest.getStatus() == RequestStatus.EXPIRED) {
+            throw new IllegalArgumentException("You can't view this Request's Result, the Request is EXPIRED");
+        }
+        if(medicineRequest.getStatus() == RequestStatus.COMPLETED){
+            throw new IllegalArgumentException("You can't view this Request's Result, the Request is already COMPLETED");
+        }
         List<MedicineRequestResultItemResponse> medicineRequestResultItemResponseList = new ArrayList<>();
 
         BigDecimal totalPrice = BigDecimal.ZERO;
