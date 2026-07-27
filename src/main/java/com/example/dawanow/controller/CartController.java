@@ -1,6 +1,7 @@
 package com.example.dawanow.controller;
 
 import com.example.dawanow.dtos.request.AddCartItemRequest;
+import com.example.dawanow.dtos.request.BulkAddCartItemsRequest;
 import com.example.dawanow.dtos.response.ApiResponse;
 import com.example.dawanow.dtos.response.CartResponse;
 import com.example.dawanow.repo.CartRepository;
@@ -80,6 +81,38 @@ public class CartController {
             @Valid @RequestBody AddCartItemRequest request) {
         CartResponse cartResponse =  cartService.addItem(request);
         return ResponseEntity.ok(ApiResponse.success("Product added to cart", cartResponse));
+    }
+
+    @PostMapping("/items/bulk")
+    @Operation(
+            summary = "Add multiple products to cart",
+            description = "Atomically validates and adds multiple products. Duplicate product IDs are consolidated.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Products added successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid request"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "One or more products were not found"
+            )
+    })
+    public ResponseEntity<ApiResponse<CartResponse>> addItems(
+            @Valid @RequestBody BulkAddCartItemsRequest request
+    ) {
+        CartResponse cartResponse = cartService.addItems(request);
+        return ResponseEntity.ok(ApiResponse.success("Products added to cart", cartResponse));
     }
 
     @PatchMapping("/items/{cartItemId}")
