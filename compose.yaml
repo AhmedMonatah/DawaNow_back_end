@@ -38,6 +38,8 @@ services:
         condition: service_healthy
         restart: true
     restart: unless-stopped
+    volumes:
+      - ./uploads:/app/uploads
 
 volumes:
   mysql-data:
