@@ -52,6 +52,10 @@ public class SecurityConfig {
             "/api/v1/auth/verify"
     };
 
+    public static final String[] PUBLIC_UPLOADS = {
+            "/uploads/**"
+    };
+
     public static final String[] SWAGGER = {
             "/v3/api-docs",
             "/v3/api-docs/**",
@@ -76,6 +80,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET).permitAll()
                         .requestMatchers(HttpMethod.GET, SWAGGER).permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_POST).permitAll()
+                        .requestMatchers(PUBLIC_UPLOADS).permitAll()
                         .anyRequest().authenticated()
                 ).sessionManagement(session ->
                 session.sessionCreationPolicy(
