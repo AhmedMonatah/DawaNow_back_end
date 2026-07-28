@@ -1,6 +1,7 @@
 package com.example.dawanow.service;
 
 import com.example.dawanow.dtos.request.AddCartItemRequest;
+import com.example.dawanow.dtos.request.BulkAddCartItemsRequest;
 import com.example.dawanow.dtos.response.CartResponse;
 import com.example.dawanow.entity.Cart;
 import com.example.dawanow.entity.CartItem;
@@ -17,6 +18,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -64,6 +70,56 @@ public class CartService {
 
         recalculateCartTotal(cart);
 
+        return cartMapper.toResponse(cart);
+    }
+
+    @Transactional
+    public CartResponse addItems(BulkAddCartItemsRequest request) {
+        Map<Long, Long> quantitiesByProduct = new LinkedHashMap<>();
+        for (AddCartItemRequest item : request.items()) {
+            quantitiesByProduct.merge(item.productId(), item.quantity(), (current, addition) -> {
+                try {
+                    return Math.addExact(current, addition);
+                } catch (ArithmeticException exception) {
+                    throw new IllegalArgumentException("Cart item quantity is too large");
+                }
+            });
+        }
+
+        List<Product> products = productRepository.findAllById(quantitiesByProduct.keySet());
+        Map<Long, Product> productsById = products.stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+        for (Long productId : quantitiesByProduct.keySet()) {
+            if (!productsById.containsKey(productId)) {
+                throw new ResourceNotFoundException("Product not found: " + productId);
+            }
+        }
+
+        Cart cart = getOrCreateCart();
+        Map<Long, CartItem> existingItems = cart.getItems().stream()
+                .collect(Collectors.toMap(item -> item.getProduct().getId(), Function.identity()));
+
+        for (Map.Entry<Long, Long> entry : quantitiesByProduct.entrySet()) {
+            CartItem cartItem = existingItems.get(entry.getKey());
+            if (cartItem == null) {
+                Product product = productsById.get(entry.getKey());
+                cartItem = new CartItem();
+                cartItem.setCart(cart);
+                cartItem.setProduct(product);
+                cartItem.setQuantity(entry.getValue());
+                cartItem.setUnitPrice(product.getPrice());
+                cart.getItems().add(cartItem);
+                cartItemRepository.save(cartItem);
+            } else {
+                try {
+                    cartItem.setQuantity(Math.addExact(cartItem.getQuantity(), entry.getValue()));
+                } catch (ArithmeticException exception) {
+                    throw new IllegalArgumentException("Cart item quantity is too large");
+                }
+            }
+        }
+
+        recalculateCartTotal(cart);
         return cartMapper.toResponse(cart);
     }
 

@@ -1,7 +1,7 @@
 package com.example.dawanow.exception;
 
 import com.example.dawanow.dtos.response.ApiResponse;
-import jakarta.validation.constraints.Max;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -71,4 +71,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
         return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(ApiResponse.failure("File size exceeds the maximum allowed limit"));
     }
+
+    @ExceptionHandler(PrescriptionAiUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePrescriptionAiUnavailable(
+            PrescriptionAiUnavailableException exception
+    ) {
+        return ResponseEntity.status(exception.getStatus())
+                .body(ApiResponse.failure(exception.getMessage()));
+    }
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(ConstraintViolationException exception) {
+        String message = exception.getConstraintViolations().stream()
+                .findFirst()
+                .map(violation -> violation.getPropertyPath() + " " + violation.getMessage())
+                .orElse("Invalid request");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.failure(message));
+    }
+
 }

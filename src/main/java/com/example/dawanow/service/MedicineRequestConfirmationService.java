@@ -11,7 +11,7 @@ import com.example.dawanow.repo.OrderRepository;
 import com.example.dawanow.repo.PharmacyOfferItemRepository;
 import com.example.dawanow.repo.PharmacyOfferRepository;
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -172,7 +172,7 @@ public class MedicineRequestConfirmationService {
             order.setDeliveryLatitude(medicineRequest.getDeliveryLatitude());
             order.setDeliveryLongitude(medicineRequest.getDeliveryLongitude());
             order.setStatus(OrderStatus.PENDING);
-            order.setDate(LocalDate.now());
+            order.setDate(LocalDateTime.now());
             order.setRequest(medicineRequest);
 
             BigDecimal total = BigDecimal.ZERO;

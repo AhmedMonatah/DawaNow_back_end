@@ -5,6 +5,7 @@ import com.example.dawanow.dtos.request.UpdateProductRequest;
 import com.example.dawanow.dtos.response.ApiResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.dtos.response.ProductResponse;
+import com.example.dawanow.service.MedicineImageSearchService;
 import com.example.dawanow.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -22,6 +23,7 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,7 +33,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/products")
@@ -55,6 +61,30 @@ public class ProductController {
             "{\"success\":false,\"message\":\"price must be greater than 0\",\"data\":null}";
 
     private final ProductService productService;
+    private final MedicineImageSearchService medicineImageSearchService;
+
+    @PostMapping(value = "/analyze-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            summary = "Find a product from a medicine package image",
+            description = "Reads one medicine package image with AI and returns up to three matching catalog products.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> analyzeImage(
+            @RequestPart("image") MultipartFile image,
+            @RequestParam(defaultValue = "en") String lang,
+            @Parameter(
+                    name = "X-AI-Api-Key",
+                    description = "AI provider API key used only for this medicine image search request",
+                    in = io.swagger.v3.oas.annotations.enums.ParameterIn.HEADER,
+                    required = false
+            )
+            @RequestHeader(value = "X-AI-Api-Key", required = false) String aiApiKey
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Medicine image analyzed",
+                medicineImageSearchService.analyzeImage(image, lang, aiApiKey)
+        ));
+    }
 
     @GetMapping
     @Operation(

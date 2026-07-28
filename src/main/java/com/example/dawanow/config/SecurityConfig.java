@@ -15,8 +15,6 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -49,8 +47,11 @@ public class SecurityConfig {
             "/api/v1/auth/register",
             "/api/v1/auth/login",
             "/api/v1/auth/refresh",
-            "/api/v1/auth/verify"
+            "/api/v1/auth/verify",
+            "/api/v1/prescriptions/analyze"
     };
+
+    public static final String CATALOG_AI = "/api/v1/ai/catalog/**";
 
     public static final String[] PUBLIC_UPLOADS = {
             "/uploads/**"
@@ -81,6 +82,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, SWAGGER).permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_POST).permitAll()
                         .requestMatchers(PUBLIC_UPLOADS).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/ai/catalog/index/status")
+                        .hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/ai/catalog/index/refresh")
+                        .hasRole("ADMIN")
+                        .requestMatchers(CATALOG_AI).permitAll()
                         .anyRequest().authenticated()
                 ).sessionManagement(session ->
                 session.sessionCreationPolicy(
