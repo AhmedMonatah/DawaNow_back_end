@@ -23,6 +23,10 @@ public interface OrderMapper {
     @Mapping(target= "subTotal", source = "totalPrice")
     @Mapping(target = "total", expression = "java(order.getTotalPrice().add(order.getDeliveryFee()))")
     @Mapping(target = "deliveryFee", expression = "java(order.getDeliveryFee())")
+    @Mapping(target = "customerNotes", source="request.notes")
+    @Mapping(target = "deliveryAddress", source="request.deliveryAddress")
+    @Mapping(target = "phoneNumber", source="user.phoneNumber")
+    @Mapping(target = "prescriptionUrl", source="request.prescriptionUrl")
     OrderResponse toResponse(Order order);
 
     @Mapping(target = "productId", source = "product.id")
