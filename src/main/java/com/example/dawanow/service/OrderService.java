@@ -22,6 +22,7 @@ import com.example.dawanow.repo.PharmacyOfferRepository;
 import com.example.dawanow.repo.PharmacyRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,7 +62,7 @@ public class OrderService {
         order.setOffer(offer);
         order.setDeliveryLatitude(offer.getRequest().getDeliveryLatitude());
         order.setDeliveryLongitude(offer.getRequest().getDeliveryLongitude());
-        order.setDate(LocalDate.now());
+        order.setDate(LocalDateTime.now());
         order.setDeliveryAddress(offer.getRequest().getDeliveryAddress());
         order.setTotalPrice(offer.getTotalPrice());
 
