@@ -1,6 +1,7 @@
 package com.example.dawanow.service;
 
 import com.example.dawanow.dtos.request.CreateOrderRequest;
+import com.example.dawanow.dtos.response.OrderGroupResponse;
 import com.example.dawanow.dtos.response.OrderResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.entity.Customer;
@@ -23,7 +24,10 @@ import com.example.dawanow.repo.PharmacyRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -70,11 +74,40 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public PaginatedResponse<OrderResponse> getCurrentCustomerOrders(Pageable pageable) {
+    public PaginatedResponse<OrderGroupResponse> getCurrentCustomerOrders(Pageable pageable) {
         Customer currentCustomer = requireCurrentCustomer();
+        Long userId = currentCustomer.getId();
 
-        return PaginatedResponse.from(
-                orderRepository.findByUserId(currentCustomer.getId(), pageable).map(orderMapper::toResponse)
+        List<Long> requestIds = orderRepository.findRequestIdsByUserId(userId, pageable);
+        if (requestIds.isEmpty()) {
+            return PaginatedResponse.empty(pageable);
+        }
+
+        long totalElements = orderRepository.countDistinctRequestIdsByUserId(userId);
+
+        List<Order> orders = orderRepository.findByUserIdAndRequestIdIn(userId, requestIds);
+
+        Map<Long, List<OrderResponse>> grouped = new LinkedHashMap<>();
+        for (Long requestId : requestIds) {
+            grouped.put(requestId, new ArrayList<>());
+        }
+        for (Order order : orders) {
+            grouped.get(order.getRequest().getId()).add(orderMapper.toResponse(order));
+        }
+
+        List<OrderGroupResponse> content = grouped.entrySet().stream()
+                .map(e -> new OrderGroupResponse(e.getKey(), e.getValue()))
+                .toList();
+
+        int totalPages = (int) Math.ceil((double) totalElements / pageable.getPageSize());
+
+        return new PaginatedResponse<>(
+                content,
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                totalElements,
+                totalPages,
+                pageable.getPageNumber() >= totalPages - 1
         );
     }
 

@@ -13,9 +13,53 @@ import java.util.List;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
-    Page<Order> findByUserId(Long userId, Pageable pageable);
+    @Query("""
+            SELECT DISTINCT o FROM Order o
+            JOIN FETCH o.user
+            JOIN FETCH o.pharmacy
+            JOIN FETCH o.pharmacist
+            JOIN FETCH o.request
+            JOIN FETCH o.offer
+            WHERE o.user.id = :userId
+            """)
+    List<Order> findByUserId(@Param("userId") Long userId);
 
-    Page<Order> findByPharmacyId(Long pharmacyId, Pageable pageable);
+    @Query("""
+            SELECT DISTINCT o.request.id FROM Order o
+            WHERE o.user.id = :userId
+            ORDER BY o.request.id DESC
+            """)
+    List<Long> findRequestIdsByUserId(@Param("userId") Long userId, Pageable pageable);
+
+    @Query("""
+            SELECT COUNT(DISTINCT o.request.id) FROM Order o
+            WHERE o.user.id = :userId
+            """)
+    long countDistinctRequestIdsByUserId(@Param("userId") Long userId);
+
+    @Query("""
+            SELECT DISTINCT o FROM Order o
+            JOIN FETCH o.user
+            JOIN FETCH o.pharmacy
+            JOIN FETCH o.pharmacist
+            JOIN FETCH o.request
+            JOIN FETCH o.offer
+            WHERE o.user.id = :userId AND o.request.id IN :requestIds
+            ORDER BY o.request.id DESC, o.date DESC
+            """)
+    List<Order> findByUserIdAndRequestIdIn(@Param("userId") Long userId, @Param("requestIds") List<Long> requestIds);
+
+    @Query(value = """
+            SELECT DISTINCT o FROM Order o
+            JOIN FETCH o.user
+            JOIN FETCH o.pharmacy
+            JOIN FETCH o.pharmacist
+            JOIN FETCH o.request
+            JOIN FETCH o.offer
+            WHERE o.pharmacy.id = :pharmacyId
+            """,
+            countQuery = "SELECT COUNT(o) FROM Order o WHERE o.pharmacy.id = :pharmacyId")
+    Page<Order> findByPharmacyId(@Param("pharmacyId") Long pharmacyId, Pageable pageable);
 
     boolean existsByOfferId(Long offerId);
 
@@ -23,7 +67,22 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     long countByPharmacyIdAndDateBetween(Long pharmacyId, LocalDateTime start, LocalDateTime end);
 
-    List<Order> findByPharmacyIdAndDateBetweenOrderByDateDesc(Long pharmacyId, LocalDateTime start, LocalDateTime end);
+    @Query("""
+            SELECT DISTINCT o FROM Order o
+            JOIN FETCH o.user
+            JOIN FETCH o.pharmacy
+            JOIN FETCH o.pharmacist
+            JOIN FETCH o.request
+            JOIN FETCH o.offer
+            WHERE o.pharmacy.id = :pharmacyId
+              AND o.date BETWEEN :start AND :end
+            ORDER BY o.date DESC
+            """)
+    List<Order> findByPharmacyIdAndDateBetweenOrderByDateDesc(
+            @Param("pharmacyId") Long pharmacyId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 
     @Query("""
             SELECT COALESCE(SUM(o.totalPrice), 0)

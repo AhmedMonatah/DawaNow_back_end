@@ -159,7 +159,7 @@ public class MedicineRequestService {
 
     @Transactional
     public MedicineRequestResultResponse getMedicineRequestResult(Long medicineRequestId){
-        MedicineRequest medicineRequest = medicineRequestRepository.findById(medicineRequestId).orElseThrow(()->new ResourceNotFoundException("Medicine Request not found"));
+        MedicineRequest medicineRequest = medicineRequestRepository.findDetailedById(medicineRequestId).orElseThrow(()->new ResourceNotFoundException("Medicine Request not found"));
         if (!medicineRequest.getCustomer().getId().equals(currentUserProvider.get().getId())) {
             throw new AccessDeniedException("You are not allowed to view this medicine request result");
         }

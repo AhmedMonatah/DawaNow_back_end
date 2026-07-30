@@ -2,6 +2,7 @@ package com.example.dawanow.controller;
 
 import com.example.dawanow.dtos.request.CreateOrderRequest;
 import com.example.dawanow.dtos.response.ApiResponse;
+import com.example.dawanow.dtos.response.OrderGroupResponse;
 import com.example.dawanow.dtos.response.OrderResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.service.OrderService;
@@ -66,7 +67,7 @@ public class OrderController {
                     description = "Customer role is required"
             )
     })
-    public ResponseEntity<ApiResponse<PaginatedResponse<OrderResponse>>> getCurrentCustomerOrders(
+    public ResponseEntity<ApiResponse<PaginatedResponse<OrderGroupResponse>>> getCurrentCustomerOrders(
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
         return ResponseEntity.ok(ApiResponse.success("Orders fetched", orderService.getCurrentCustomerOrders(pageable)));
