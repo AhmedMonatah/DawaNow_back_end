@@ -41,16 +41,14 @@ public class PharmacyDashboardService {
             throw new AccessDeniedException("Only the pharmacy admin can access the dashboard");
         }
 
-        var dateStart = period.getStartDate();
-        var dateEnd = period.getEndDate();
         var dateTimeStart = period.getStartDateTime();
         var dateTimeEnd = period.getEndDateTime();
 
         BigDecimal totalRevenue = orderRepository.sumTotalPriceByPharmacyIdAndDateBetween(
-                pharmacy.getId(), dateStart, dateEnd);
+                pharmacy.getId(), dateTimeStart, dateTimeEnd);
 
         long totalOrders = orderRepository.countByPharmacyIdAndDateBetween(
-                pharmacy.getId(), dateStart, dateEnd);
+                pharmacy.getId(), dateTimeStart, dateTimeEnd);
 
         long requestsReceived = pharmacyAssignmentRepository.countByPharmacyIdAndAssignedAtBetween(
                 pharmacy.getId(), dateTimeStart, dateTimeEnd);
@@ -59,7 +57,7 @@ public class PharmacyDashboardService {
                 pharmacy.getId(), dateTimeStart, dateTimeEnd);
 
         List<MostSoldProductResponse> topSellingProducts = orderRepository
-                .findTopSellingProducts(pharmacy.getId(), dateStart, dateEnd, PageRequest.of(0, 5))
+                .findTopSellingProducts(pharmacy.getId(), dateTimeStart, dateTimeEnd, PageRequest.of(0, 5))
                 .stream()
                 .map(row -> new MostSoldProductResponse(
                         (Long) row[0],
@@ -71,7 +69,7 @@ public class PharmacyDashboardService {
                 .toList();
 
         List<OrderResponse> recentOrders = orderRepository
-                .findByPharmacyIdAndDateBetweenOrderByDateDesc(pharmacy.getId(), dateStart, dateEnd)
+                .findByPharmacyIdAndDateBetweenOrderByDateDesc(pharmacy.getId(), dateTimeStart, dateTimeEnd)
                 .stream()
                 .limit(5)
                 .map(orderMapper::toResponse)
