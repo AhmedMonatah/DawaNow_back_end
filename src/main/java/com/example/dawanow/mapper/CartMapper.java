@@ -7,12 +7,10 @@ import com.example.dawanow.entity.CartItem;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = ProductMapper.class)
 public interface CartMapper {
 
-    @Mapping(target = "productId", source = "product.id")
-    @Mapping(target = "productName", source = "product.name")
-    @Mapping(target = "imageUrl", source = "product.imageUrl")
+    @Mapping(target = "product", source = "product")
     @Mapping(target = "unitPrice", source = "product.price")
     @Mapping(target = "subtotal",
             expression = "java(cartItem.getUnitPrice().multiply(java.math.BigDecimal.valueOf(cartItem.getQuantity())))")

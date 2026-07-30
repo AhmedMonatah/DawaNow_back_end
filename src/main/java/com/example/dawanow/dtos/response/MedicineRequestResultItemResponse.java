@@ -4,9 +4,7 @@ import java.math.BigDecimal;
 
 public record MedicineRequestResultItemResponse(
         Long requestItemId,
-        Long productId,
-        String productName,
-        String imageUrl,
+        ProductSummaryResponse product,
         BigDecimal unitPrice,
         Boolean alternative,
         Boolean available

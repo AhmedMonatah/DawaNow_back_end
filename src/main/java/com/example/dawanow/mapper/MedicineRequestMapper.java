@@ -9,7 +9,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = ProductMapper.class)
 public interface MedicineRequestMapper {
 
     @Mapping(target = "customerId", source = "customer.id")
@@ -17,12 +17,7 @@ public interface MedicineRequestMapper {
     @Mapping(target = "customerPhone", source = "customer.phoneNumber")
     MedicineRequestResponse toResponse(MedicineRequest request);
 
-    @Mapping(target = "productId", source = "product.id")
-    @Mapping(target = "imageUrl", source = "item.product.imageUrl")
-    @Mapping(target = "productName", source = "item.product.productName")
-    @Mapping(target = "strength", source = "item.product.strength")
-    @Mapping(target = "packSize", source = "item.product.packSize")
-    @Mapping(target = "form", source = "item.product.form")
+    @Mapping(target = "product", source = "item.product")
     @Mapping(target = "quantity", source = "item.quantity")
     @Mapping(target = "unitPrice", source = "item.product.price")
     MedicineRequestItemResponse toResponse(RequestItem item);
