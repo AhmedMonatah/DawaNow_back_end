@@ -12,6 +12,6 @@ import org.springframework.stereotype.Component;
 public class StripeProperties {
 
     private String secretKey = "";
-    private String publishableKey = "";
-    private String currency = "usd";
+    private String webhookSecret = "";
+    private String currency = "egp";
 }

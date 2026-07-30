@@ -9,26 +9,28 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
-@Tag(name = "Payments", description = "Create and inspect Stripe payment intents")
+@Tag(name = "Payments", description = "Stripe PaymentIntent creation and webhooks")
 public class PaymentController {
 
     private final PaymentService paymentService;
 
-    @PostMapping("/intent")
+    @PostMapping("/create-intent")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(
-            summary = "Create a Stripe payment intent",
-            description = "Creates a PaymentIntent and returns the client secret for Stripe.js / mobile SDK confirmation.",
+            summary = "Create a Stripe PaymentIntent for an order",
+            description = "Amount is calculated from the order in the database. Returns clientSecret for PaymentSheet.",
             security = @SecurityRequirement(name = "basicAuth")
     )
     public ResponseEntity<ApiResponse<PaymentIntentResponse>> createIntent(
@@ -40,18 +42,13 @@ public class PaymentController {
         ));
     }
 
-    @GetMapping("/intent/{paymentIntentId}")
-    @Operation(
-            summary = "Get a Stripe payment intent status",
-            description = "Retrieves the current status of an existing PaymentIntent.",
-            security = @SecurityRequirement(name = "basicAuth")
-    )
-    public ResponseEntity<ApiResponse<PaymentIntentResponse>> getIntent(
-            @PathVariable String paymentIntentId
+    @PostMapping(value = "/webhook", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Stripe webhook receiver (signature verified)")
+    public ResponseEntity<Void> webhook(
+            @RequestBody String payload,
+            @RequestHeader("Stripe-Signature") String stripeSignature
     ) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Payment intent fetched",
-                paymentService.getPaymentIntent(paymentIntentId)
-        ));
+        paymentService.handleWebhook(payload, stripeSignature);
+        return ResponseEntity.ok().build();
     }
 }

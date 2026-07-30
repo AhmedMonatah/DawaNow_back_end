@@ -7,7 +7,6 @@ import com.example.dawanow.entity.Customer;
 import com.example.dawanow.entity.OfferItemStatus;
 import com.example.dawanow.entity.OfferStatus;
 import com.example.dawanow.entity.Order;
-import com.example.dawanow.entity.OrderItem;
 import com.example.dawanow.entity.Pharmacist;
 import com.example.dawanow.entity.Pharmacy;
 import com.example.dawanow.entity.PharmacyOffer;

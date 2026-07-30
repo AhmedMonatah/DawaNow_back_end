@@ -38,7 +38,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         try {
             //Extract JWT from Authorization header
             String jwt = extractJwtFromRequest(request);
-            if (!jwtService.isAccessToken(jwt)) {
+            if (jwt == null || !jwtService.isAccessToken(jwt)) {
                 filterChain.doFilter(request, response);
                 return;
             }
