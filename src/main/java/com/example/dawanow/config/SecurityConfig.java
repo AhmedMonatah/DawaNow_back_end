@@ -48,7 +48,8 @@ public class SecurityConfig {
             "/api/v1/auth/login",
             "/api/v1/auth/refresh",
             "/api/v1/auth/verify",
-            "/api/v1/prescriptions/analyze"
+            "/api/v1/prescriptions/analyze",
+            "/api/v1/payments/webhook"
     };
 
     public static final String CATALOG_AI = "/api/v1/ai/catalog/**";

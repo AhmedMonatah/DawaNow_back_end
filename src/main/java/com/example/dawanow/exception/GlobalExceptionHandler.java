@@ -4,6 +4,7 @@ import com.example.dawanow.dtos.response.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -79,6 +80,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(exception.getStatus())
                 .body(ApiResponse.failure(exception.getMessage()));
     }
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure(ex.getMessage()));
+    }
+
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(ConstraintViolationException exception) {
         String message = exception.getConstraintViolations().stream()

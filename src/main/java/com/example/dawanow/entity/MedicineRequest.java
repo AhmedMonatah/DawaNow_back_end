@@ -62,9 +62,6 @@ public class MedicineRequest {
     @Column(name = "prescription_url")
     private String prescriptionUrl;
 
-    @Column(name = "payment_method", length = 100)
-    private String paymentMethod;
-
     @Column(name = "notes", length = 1000)
     private String notes;
 }

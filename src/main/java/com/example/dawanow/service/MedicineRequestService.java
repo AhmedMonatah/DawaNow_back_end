@@ -72,9 +72,6 @@ public class MedicineRequestService {
 
         medicineRequest.setNotes(request.notes());
 
-        medicineRequest.setPaymentMethod(request.paymentMethod());
-
-
         if (prescription != null && !prescription.isEmpty()) {
             String url = fileStorageService.storePrescription(prescription);
             medicineRequest.setPrescriptionUrl(url);

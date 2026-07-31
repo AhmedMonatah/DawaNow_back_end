@@ -3,9 +3,11 @@ package com.example.dawanow.controller;
 import com.example.dawanow.dtos.request.CreatePharmacyRequest;
 import com.example.dawanow.dtos.request.UpdatePharmacyRequest;
 import com.example.dawanow.dtos.response.*;
+import com.example.dawanow.entity.DashboardPeriod;
 import com.example.dawanow.entity.Pharmacist;
 import com.example.dawanow.entity.User;
 import com.example.dawanow.service.MedicineRequestService;
+import com.example.dawanow.service.PharmacyDashboardService;
 import com.example.dawanow.service.PharmacyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -32,6 +34,7 @@ public class PharmacyController {
 
     private final PharmacyService pharmacyService;
     private final MedicineRequestService medicineRequestService;
+    private final PharmacyDashboardService pharmacyDashboardService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('CUSTOMER', 'PHARMACIST', 'ADMIN')")
@@ -240,6 +243,42 @@ public class PharmacyController {
             @Valid @RequestBody UpdatePharmacyRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.success("Pharmacy updated", pharmacyService.updatePharmacy(id, request)));
+    }
+
+    @GetMapping("/dashboard")
+    @PreAuthorize("hasRole('PHARMACIST')")
+    @Operation(
+            summary = "Get pharmacy dashboard",
+            description = "Returns dashboard metrics for the pharmacy the current pharmacist administers. "
+                    + "Only the pharmacy admin can access this endpoint. "
+                    + "Supports time filtering: LAST_DAY, LAST_WEEK, LAST_MONTH, LAST_YEAR.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Dashboard data fetched successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "Only the pharmacy admin can access the dashboard"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Pharmacist not assigned to any pharmacy"
+            )
+    })
+    public ResponseEntity<ApiResponse<PharmacyDashboardResponse>> getDashboard(
+            @RequestParam(defaultValue = "LAST_MONTH") DashboardPeriod period
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.success("Dashboard data fetched", pharmacyDashboardService.getDashboard(period))
+        );
     }
 
     @DeleteMapping("/{id}")
