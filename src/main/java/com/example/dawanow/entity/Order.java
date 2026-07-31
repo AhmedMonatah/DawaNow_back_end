@@ -70,10 +70,30 @@ public class Order {
     @Column(nullable = false)
     private LocalDateTime date;
 
+    @Column(name = "payment_intent_id", unique = true, length = 255)
+    private String paymentIntentId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", nullable = false, length = 32)
+    private PaymentMethod paymentMethod = PaymentMethod.CASH;
+
+    /** Used only for CARD (Stripe). Null for CASH — cash is not tracked. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", length = 32)
+    private PaymentStatus paymentStatus;
+
+    /** Used only for CARD. Null for CASH. */
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 
     public BigDecimal getDeliveryFee() {
         return BigDecimal.valueOf(20.0);
+    }
+
+    public BigDecimal getPayableTotal() {
+        return totalPrice.add(getDeliveryFee());
     }
 }

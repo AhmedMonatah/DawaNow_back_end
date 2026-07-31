@@ -70,7 +70,7 @@ public class MedicineRequestConfirmationService {
         validateSelectedItems(medicineRequest, selectedOfferItems);
 
         List<PharmacyOfferItem> optimizedItems = selectionOptimizer.optimize(selectedOfferItems);
-        List<Order> orders = createOrders(medicineRequest, optimizedItems);
+        List<Order> orders = createOrders(medicineRequest, optimizedItems, selection.paymentMethod());
         updateOfferStatuses(medicineRequest.getId(), optimizedItems);
         medicineRequest.setStatus(RequestStatus.COMPLETED);
 
@@ -150,7 +150,8 @@ public class MedicineRequestConfirmationService {
 
     private List<Order> createOrders(
             MedicineRequest medicineRequest,
-            List<PharmacyOfferItem> selectedItems
+            List<PharmacyOfferItem> selectedItems,
+            PaymentMethod paymentMethod
     ) {
         Map<Long, List<PharmacyOfferItem>> itemsByPharmacy = new LinkedHashMap<>();
         for (PharmacyOfferItem selectedItem : selectedItems) {
@@ -174,6 +175,14 @@ public class MedicineRequestConfirmationService {
             order.setStatus(OrderStatus.PENDING);
             order.setDate(LocalDateTime.now());
             order.setRequest(medicineRequest);
+            order.setPaymentMethod(paymentMethod);
+            if (paymentMethod == PaymentMethod.CARD) {
+                order.setPaymentStatus(PaymentStatus.UNPAID);
+            } else {
+                order.setPaymentStatus(null);
+                order.setPaymentIntentId(null);
+                order.setPaidAt(null);
+            }
 
             BigDecimal total = BigDecimal.ZERO;
             for (PharmacyOfferItem selectedItem : pharmacyItems) {
