@@ -9,7 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
@@ -22,9 +22,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     boolean existsByOfferRequestId(Long requestId);
 
-    long countByPharmacyIdAndDateBetween(Long pharmacyId, LocalDate start, LocalDate end);
+    long countByPharmacyIdAndDateBetween(Long pharmacyId, LocalDateTime start, LocalDateTime end);
 
-    List<Order> findByPharmacyIdAndDateBetweenOrderByDateDesc(Long pharmacyId, LocalDate start, LocalDate end);
+    List<Order> findByPharmacyIdAndDateBetweenOrderByDateDesc(Long pharmacyId, LocalDateTime start, LocalDateTime end);
 
     @Query("""
             SELECT COALESCE(SUM(o.totalPrice), 0)
@@ -34,8 +34,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             """)
     BigDecimal sumTotalPriceByPharmacyIdAndDateBetween(
             @Param("pharmacyId") Long pharmacyId,
-            @Param("start") LocalDate start,
-            @Param("end") LocalDate end
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
     );
 
     @Query("""
@@ -53,8 +53,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             """)
     List<Object[]> findTopSellingProducts(
             @Param("pharmacyId") Long pharmacyId,
-            @Param("start") LocalDate start,
-            @Param("end") LocalDate end,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
             Pageable pageable
     );
 
