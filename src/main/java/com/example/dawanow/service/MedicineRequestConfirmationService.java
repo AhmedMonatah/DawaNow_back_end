@@ -70,7 +70,36 @@ public class MedicineRequestConfirmationService {
         validateSelectedItems(medicineRequest, selectedOfferItems);
 
         List<PharmacyOfferItem> optimizedItems = selectionOptimizer.optimize(selectedOfferItems);
-        List<Order> orders = createOrders(medicineRequest, optimizedItems, medicineRequest.getPaymentMethod());
+        List<Order> orders = createOrders(medicineRequest, optimizedItems);
+        FulfillmentMethod fulfillmentMethod = selection.fulfillmentMethod();
+
+
+        MasterOrder masterOrder = new MasterOrder();
+        masterOrder.setOrders(orders);
+        masterOrder.setTotalPrice(orders.stream().map(Order::getTotalPrice).reduce(BigDecimal.ZERO, BigDecimal::add));
+        masterOrder.setFulfillmentMethod(fulfillmentMethod);
+        masterOrder.setUser(customer);
+
+        if(fulfillmentMethod == FulfillmentMethod.PICKUP) {
+            OrderStatus orderStatus= OrderStatus.P;
+        }
+
+        PaymentMethod paymentMethod = medicineRequest.getPaymentMethod();
+        masterOrder.setPaymentMethod(paymentMethod);
+
+        if (paymentMethod == PaymentMethod.CARD) {
+            masterOrder.setPaymentStatus(PaymentStatus.UNPAID);
+        } else {
+            masterOrder.setPaymentStatus(null);
+            masterOrder.setPaymentIntentId(null);
+            masterOrder.setPaidAt(null);
+        }
+
+
+
+        for(Order order : orders) {
+
+        }
         updateOfferStatuses(medicineRequest.getId(), optimizedItems);
         medicineRequest.setStatus(RequestStatus.COMPLETED);
 
@@ -150,8 +179,7 @@ public class MedicineRequestConfirmationService {
 
     private List<Order> createOrders(
             MedicineRequest medicineRequest,
-            List<PharmacyOfferItem> selectedItems,
-            PaymentMethod paymentMethod
+            List<PharmacyOfferItem> selectedItems
     ) {
         Map<Long, List<PharmacyOfferItem>> itemsByPharmacy = new LinkedHashMap<>();
         for (PharmacyOfferItem selectedItem : selectedItems) {
@@ -175,14 +203,7 @@ public class MedicineRequestConfirmationService {
             order.setStatus(OrderStatus.PENDING);
             order.setDate(LocalDateTime.now());
             order.setRequest(medicineRequest);
-            order.setPaymentMethod(paymentMethod);
-            if (paymentMethod == PaymentMethod.CARD) {
-                order.setPaymentStatus(PaymentStatus.UNPAID);
-            } else {
-                order.setPaymentStatus(null);
-                order.setPaymentIntentId(null);
-                order.setPaidAt(null);
-            }
+
 
             BigDecimal total = BigDecimal.ZERO;
             for (PharmacyOfferItem selectedItem : pharmacyItems) {
