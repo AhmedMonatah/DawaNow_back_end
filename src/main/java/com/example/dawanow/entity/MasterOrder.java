@@ -1,0 +1,62 @@
+package com.example.dawanow.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+
+@Entity
+@Table(name = "master_orders")
+@Getter
+@Setter
+@NoArgsConstructor
+public class MasterOrder {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @OneToMany(
+            mappedBy = "masterOrder",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    private List<Order> orders = new ArrayList<>();
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "request_id", nullable = false, unique = true)
+    private MedicineRequest request;
+
+    @Column(name = "payment_intent_id", unique = true, length = 255)
+    private String paymentIntentId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", nullable = false, length = 32)
+    private PaymentMethod paymentMethod = PaymentMethod.CASH;
+
+    /** Used only for CARD (Stripe). Null for CASH — cash is not tracked. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", length = 32)
+    private PaymentStatus paymentStatus;
+
+    /** Used only for CARD. Null for CASH. */
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
+    private FulfillmentMethod fulfillmentMethod;
+
+    private BigDecimal totalPrice;
+
+    OrderStatus orderStatus = OrderStatus.PREPARING;
+
+}
