@@ -4,11 +4,13 @@ import com.example.dawanow.entity.Pharmacist;
 
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface PharmacistRepository extends JpaRepository<Pharmacist, Long> {
+    @EntityGraph(attributePaths = {"pharmacy"})
     Optional<Pharmacist> findByEmail(String email);
     @Query(
             value = """

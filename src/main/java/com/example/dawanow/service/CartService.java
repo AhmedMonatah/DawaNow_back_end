@@ -2,7 +2,9 @@ package com.example.dawanow.service;
 
 import com.example.dawanow.dtos.request.AddCartItemRequest;
 import com.example.dawanow.dtos.request.BulkAddCartItemsRequest;
+import com.example.dawanow.dtos.response.CartItemResponse;
 import com.example.dawanow.dtos.response.CartResponse;
+import com.example.dawanow.dtos.response.ProductSummaryResponse;
 import com.example.dawanow.entity.Cart;
 import com.example.dawanow.entity.CartItem;
 import com.example.dawanow.entity.Product;
@@ -16,10 +18,12 @@ import com.example.dawanow.repo.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -29,6 +33,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CartService {
 
+    private static final String DEFAULT_LANG = "en";
+    private static final String ARABIC = "ar";
+
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
@@ -37,9 +44,10 @@ public class CartService {
 
 
     @Transactional
-    public CartResponse getCart(){
+    public CartResponse getCart(String lang){
+        String language = normalizeLanguage(lang);
         Cart cart = getOrCreateCart();
-        return cartMapper.toResponse(cart);
+        return toResponse(cart, resolveItems(List.of(cart), language));
     }
 
     @Transactional
@@ -50,7 +58,8 @@ public class CartService {
 
 
     @Transactional
-    public CartResponse addItem(AddCartItemRequest request){
+    public CartResponse addItem(AddCartItemRequest request, String lang){
+        String language = normalizeLanguage(lang);
         Cart cart = getOrCreateCart();
         Product product = productRepository.findById(request.productId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
@@ -70,11 +79,12 @@ public class CartService {
 
         recalculateCartTotal(cart);
 
-        return cartMapper.toResponse(cart);
+        return toResponse(cart, resolveItems(List.of(cart), language));
     }
 
     @Transactional
-    public CartResponse addItems(BulkAddCartItemsRequest request) {
+    public CartResponse addItems(BulkAddCartItemsRequest request, String lang) {
+        String language = normalizeLanguage(lang);
         Map<Long, Long> quantitiesByProduct = new LinkedHashMap<>();
         for (AddCartItemRequest item : request.items()) {
             quantitiesByProduct.merge(item.productId(), item.quantity(), (current, addition) -> {
@@ -120,27 +130,29 @@ public class CartService {
         }
 
         recalculateCartTotal(cart);
-        return cartMapper.toResponse(cart);
+        return toResponse(cart, resolveItems(List.of(cart), language));
     }
 
     @Transactional
-    public CartResponse setQuantity(Long cartItemId, Long newQuantity){
+    public CartResponse setQuantity(Long cartItemId, Long newQuantity, String lang){
+        String language = normalizeLanguage(lang);
         Cart cart = getOrCreateCart();
         CartItem cartItem = cartItemRepository.findByIdAndCartId(cartItemId, cart.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Cart item not found"));
         cartItem.setQuantity(newQuantity);
         recalculateCartTotal(cart);
-        return cartMapper.toResponse(cart);
+        return toResponse(cart, resolveItems(List.of(cart), language));
     }
 
     @Transactional
-    public CartResponse removeItem(Long cartItemId){
+    public CartResponse removeItem(Long cartItemId, String lang){
+        String language = normalizeLanguage(lang);
         Cart cart = getOrCreateCart();
         CartItem cartItem = cartItemRepository.findByIdAndCartId(cartItemId, cart.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Cart item not found"));
         cart.getItems().remove(cartItem);
         recalculateCartTotal(cart);
-        return cartMapper.toResponse(cart);
+        return toResponse(cart, resolveItems(List.of(cart), language));
     }
 
     @Transactional
@@ -154,6 +166,47 @@ public class CartService {
     public Long getItemCount(){
         Cart cart = getOrCreateCart();
         return cart.getItems().stream().mapToLong(CartItem::getQuantity).sum();
+    }
+
+    private CartResponse toResponse(Cart cart, Map<Long, List<CartItemResponse>> itemsByCartId) {
+        return cartMapper.toResponse(cart, itemsByCartId.getOrDefault(cart.getId(), List.of()));
+    }
+
+    /**
+     * Raw line data is fetched for all carts in one query (product left null),
+     * then the distinct products are resolved in a single localized query and
+     * filled in place. Results are grouped by cart id.
+     */
+    private Map<Long, List<CartItemResponse>> resolveItems(List<Cart> carts, String lang) {
+        List<Long> cartIds = carts.stream()
+                .map(Cart::getId)
+                .toList();
+        if (cartIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<CartItemResponse> items = cartItemRepository.findByCartIdIn(cartIds);
+
+        List<Long> productIds = items.stream()
+                .map(CartItemResponse::getProductId)
+                .filter(id -> id != null)   // deleted products have null productId
+                .distinct()
+                .toList();
+
+        if (!productIds.isEmpty()) {
+            Map<Long, ProductSummaryResponse> productsById = productRepository
+                    .findAllLocalized(productIds, lang, DEFAULT_LANG)
+                    .stream()
+                    .collect(Collectors.toMap(ProductSummaryResponse::id, Function.identity()));
+
+            items.forEach(item -> item.setProduct(productsById.get(item.getProductId())));
+        }
+
+        return items.stream().collect(Collectors.groupingBy(
+                CartItemResponse::getCartId,
+                LinkedHashMap::new,
+                Collectors.toList()
+        ));
     }
 
     private Cart getOrCreateCart() {
@@ -172,6 +225,16 @@ public class CartService {
                 .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         cart.setTotalPrice(total);
+    }
+
+    private String normalizeLanguage(String lang) {
+        String language = StringUtils.hasText(lang)
+                ? lang.trim().toLowerCase(Locale.ROOT)
+                : DEFAULT_LANG;
+        if (!DEFAULT_LANG.equals(language) && !ARABIC.equals(language)) {
+            throw new IllegalArgumentException("Unsupported language. Supported values are en and ar");
+        }
+        return language;
     }
 
 }
