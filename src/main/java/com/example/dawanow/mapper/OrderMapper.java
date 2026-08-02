@@ -7,7 +7,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = ProductMapper.class)
 public interface OrderMapper {
 
     @Mapping(target = "customerId", source = "user.id")
@@ -29,9 +29,7 @@ public interface OrderMapper {
     @Mapping(target = "prescriptionUrl", source="request.prescriptionUrl")
     OrderResponse toResponse(Order order);
 
-    @Mapping(target = "productId", source = "product.id")
-    @Mapping(target = "productName", source = "product.name")
-    @Mapping(target = "imageUrl", source = "product.imageUrl")
+    @Mapping(target = "product", source = "product")
     @Mapping(target = "totalPrice", expression = "java(orderItem.getUnitPrice().multiply(java.math.BigDecimal.valueOf(orderItem.getQuantity())))")
     OrderItemResponse toResponse(OrderItem orderItem);
 

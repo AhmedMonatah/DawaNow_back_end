@@ -14,8 +14,6 @@ public interface MedicineRequestResultMapper {
         return new MedicineRequestResultItemResponse(
                 requestItemId,
                 null,
-                requestedProductName,
-                null,
                 BigDecimal.ZERO,
                 false,  // alternative
                 false   // available

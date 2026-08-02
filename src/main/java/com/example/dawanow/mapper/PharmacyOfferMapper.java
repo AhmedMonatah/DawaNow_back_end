@@ -7,7 +7,7 @@ import com.example.dawanow.entity.PharmacyOfferItem;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = ProductMapper.class)
 public interface PharmacyOfferMapper {
     @Mapping(target = "requestId", source = "request.id")
     @Mapping(target = "pharmacyId", source = "pharmacy.id")
@@ -15,6 +15,6 @@ public interface PharmacyOfferMapper {
     PharmacyOfferResponse toResponse(PharmacyOffer offer);
 
     @Mapping(target = "requestItemId", source = "requestItem.id")
-    @Mapping(target = "productId", source = "product.id")
+    @Mapping(target = "product", source = "product")
     PharmacyOfferItemResponse toItemResponse(PharmacyOfferItem item);
 }
