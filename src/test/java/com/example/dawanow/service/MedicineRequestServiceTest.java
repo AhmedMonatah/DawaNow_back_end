@@ -88,7 +88,7 @@ class MedicineRequestServiceTest {
         when(productRepository.findAllLocalized(List.of(11L), "ar", "en")).thenReturn(List.of(summary));
 
         MedicineRequestResponse expected = new MedicineRequestResponse(
-                8L, 3L, "name", "phone", null, null, null, null, null, List.of(item), null, null);
+                8L, 3L, "name", "phone", null, null, null, null, null, List.of(item), null, null, null);
         when(medicineRequestMapper.toResponse(request, List.of(item))).thenReturn(expected);
 
         MedicineRequestResponse result = service.getRequestById(8L, "ar");
