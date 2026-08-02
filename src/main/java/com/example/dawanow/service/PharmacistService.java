@@ -5,10 +5,10 @@ import com.example.dawanow.dtos.request.UpdatePharmacistProfileRequest;
 import com.example.dawanow.dtos.request.UpdateUserRequest;
 import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.dtos.response.PharmacistResponse;
-import com.example.dawanow.entity.Pharmacist;
-import com.example.dawanow.entity.Pharmacy;
+import com.example.dawanow.entity.*;
 import com.example.dawanow.exception.ResourceNotFoundException;
 import com.example.dawanow.mapper.PharmacistMapper;
+import com.example.dawanow.repo.OrderRepository;
 import com.example.dawanow.repo.PharmacistRepository;
 import com.example.dawanow.repo.PharmacyRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.file.AccessDeniedException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -29,10 +30,29 @@ public class PharmacistService {
     private final CurrentPharmacistProvider currentPharmacistProvider;
     private final PharmacistMapper pharmacistMapper;
     private final UserService userService;
+    private final OrderRepository orderRepository;
 
     @Transactional(readOnly = true)
     public PharmacistResponse getCurrentPharmacist() {
         return pharmacistMapper.toResponse(currentPharmacistProvider.get());
+    }
+
+    @Transactional
+    public void setOrderReady(Long id) throws AccessDeniedException {
+        Order order = orderRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        Pharmacist pharmacist = currentPharmacistProvider.get();
+
+        if (!order.getPharmacy().getId().equals(pharmacist.getPharmacy().getId())) {
+            throw new AccessDeniedException("You are not allowed to update this order");
+        }
+
+        if (order.getOrderStatus() != OrderStatus.PREPARING) {
+            throw new IllegalStateException("Only preparing orders can be marked as ready");
+        }
+        if(order.getMasterOrder().getFulfillmentMethod() == FulfillmentMethod.PICKUP){
+            order.setOrderStatus(OrderStatus.READY_FOR_PICKUP);
+        }
+        else   order.setOrderStatus(OrderStatus.READY_FOR_DELIVERY);
     }
 
     public PharmacistResponse updateCurrentPharmacist(UpdatePharmacistProfileRequest request) {

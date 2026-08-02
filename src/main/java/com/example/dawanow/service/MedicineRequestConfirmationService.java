@@ -80,9 +80,6 @@ public class MedicineRequestConfirmationService {
         masterOrder.setFulfillmentMethod(fulfillmentMethod);
         masterOrder.setUser(customer);
 
-        if(fulfillmentMethod == FulfillmentMethod.PICKUP) {
-            OrderStatus orderStatus= OrderStatus.P;
-        }
 
         PaymentMethod paymentMethod = medicineRequest.getPaymentMethod();
         masterOrder.setPaymentMethod(paymentMethod);
@@ -95,11 +92,6 @@ public class MedicineRequestConfirmationService {
             masterOrder.setPaidAt(null);
         }
 
-
-
-        for(Order order : orders) {
-
-        }
         updateOfferStatuses(medicineRequest.getId(), optimizedItems);
         medicineRequest.setStatus(RequestStatus.COMPLETED);
 
@@ -200,7 +192,7 @@ public class MedicineRequestConfirmationService {
             order.setOffer(offer);
             order.setDeliveryLatitude(medicineRequest.getDeliveryLatitude());
             order.setDeliveryLongitude(medicineRequest.getDeliveryLongitude());
-            order.setStatus(OrderStatus.PENDING);
+            order.setStatus(OrderStatus.PREPARING);
             order.setDate(LocalDateTime.now());
             order.setRequest(medicineRequest);
 
