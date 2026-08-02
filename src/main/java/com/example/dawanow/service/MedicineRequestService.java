@@ -1,10 +1,12 @@
 package com.example.dawanow.service;
 
 import com.example.dawanow.dtos.request.CreateMedicineRequestRequest;
+import com.example.dawanow.dtos.response.MedicineRequestItemResponse;
 import com.example.dawanow.dtos.response.MedicineRequestResponse;
 import com.example.dawanow.dtos.response.MedicineRequestResultItemResponse;
 import com.example.dawanow.dtos.response.MedicineRequestResultResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
+import com.example.dawanow.dtos.response.ProductSummaryResponse;
 import com.example.dawanow.entity.*;
 import com.example.dawanow.exception.ResourceNotFoundException;
 import com.example.dawanow.mapper.MedicineRequestMapper;
@@ -14,26 +16,37 @@ import com.example.dawanow.repo.MedicineRequestRepository;
 import com.example.dawanow.repo.PharmacyAssignmentRepository;
 import com.example.dawanow.repo.PharmacyOfferItemRepository;
 import com.example.dawanow.repo.PharmacyRepository;
+import com.example.dawanow.repo.ProductRepository;
+import com.example.dawanow.repo.RequestItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class MedicineRequestService {
+
+    private static final String DEFAULT_LANG = "en";
+    private static final String ARABIC = "ar";
 
     private final MedicineRequestRepository medicineRequestRepository;
     private final PharmacyRepository pharmacyRepository;
@@ -46,13 +59,17 @@ public class MedicineRequestService {
     private final ProductService productService;
     private final PharmacyOfferItemRepository pharmacyOfferItemRepository;
     private final MedicineRequestResultItemMapper medicineRequestResultItemMapper;
+    private final RequestItemRepository requestItemRepository;
+    private final ProductRepository productRepository;
 
     @Value("${dawanow.request.search-timeout-minutes:15}")
     private long searchTimeoutMinutes;
 
     @Transactional
     public MedicineRequestResponse createRequest(CreateMedicineRequestRequest request,
-                                                 MultipartFile prescription) {
+                                                 MultipartFile prescription,
+                                                 String lang) {
+        String language = normalizeLanguage(lang);
         Customer customer = (Customer)currentUserProvider.get();
         Cart cart = cartService.getCartEntity();
 
@@ -102,7 +119,7 @@ public class MedicineRequestService {
 
         cartService.clearCart();
 
-        return medicineRequestMapper.toResponse(medicineRequest);
+        return toResponse(medicineRequest, resolveItems(List.of(medicineRequest), language));
     }
 
     public MedicineRequest getEntity(Long medicineRequestId){
@@ -110,7 +127,8 @@ public class MedicineRequestService {
     }
 
     @Transactional
-    public PaginatedResponse<MedicineRequestResponse> getCurrentPharmacyRequests(Pageable pageable) {
+    public PaginatedResponse<MedicineRequestResponse> getCurrentPharmacyRequests(String lang, Pageable pageable) {
+        String language = normalizeLanguage(lang);
 
         Pharmacist pharmacist = (Pharmacist) currentUserProvider.get();
 
@@ -120,11 +138,16 @@ public class MedicineRequestService {
 
         Long pharmacyId = pharmacist.getPharmacy().getId();
 
+        Page<PharmacyAssignment> assignments =
+                pharmacyAssignmentRepository.getPharmacyAssignmentsByPharmacy_Id(pharmacyId, pageable);
 
+        List<MedicineRequest> requests = assignments.getContent().stream()
+                .map(PharmacyAssignment::getMedicineRequest)
+                .toList();
+        Map<Long, List<MedicineRequestItemResponse>> itemsByRequestId = resolveItems(requests, language);
 
         return PaginatedResponse.from(
-                pharmacyAssignmentRepository.getPharmacyAssignmentsByPharmacy_Id(pharmacyId,pageable)
-                        .map(pharmacyAssignment -> medicineRequestMapper.toResponse(pharmacyAssignment.getMedicineRequest()))
+                assignments.map(assignment -> toResponse(assignment.getMedicineRequest(), itemsByRequestId))
         );
     }
 
@@ -137,28 +160,35 @@ public class MedicineRequestService {
     }
 
     @Transactional(readOnly = true)
-    public PaginatedResponse<MedicineRequestResponse> getCurrentCustomerRequests(Pageable pageable) {
+    public PaginatedResponse<MedicineRequestResponse> getCurrentCustomerRequests(String lang, Pageable pageable) {
+        String language = normalizeLanguage(lang);
         Customer currentCustomer = requireCurrentCustomer();
+        Page<MedicineRequest> requests =
+                medicineRequestRepository.findByCustomerId(currentCustomer.getId(), pageable);
+        Map<Long, List<MedicineRequestItemResponse>> itemsByRequestId = resolveItems(requests.getContent(), language);
         return PaginatedResponse.from(
-                medicineRequestRepository.findByCustomerId(currentCustomer.getId(), pageable)
-                        .map(medicineRequestMapper::toResponse)
+                requests.map(request -> toResponse(request, itemsByRequestId))
         );
     }
 
     @Transactional(readOnly = true)
-    public PaginatedResponse<MedicineRequestResponse> getAllRequests(Pageable pageable) {
+    public PaginatedResponse<MedicineRequestResponse> getAllRequests(String lang, Pageable pageable) {
+        String language = normalizeLanguage(lang);
         User currentUser = currentUserProvider.get();
         if (!isApplicationAdmin(currentUser)) {
             throw new AccessDeniedException("Only application administrators can view all medicine requests");
         }
 
+        Page<MedicineRequest> requests = medicineRequestRepository.findAll(pageable);
+        Map<Long, List<MedicineRequestItemResponse>> itemsByRequestId = resolveItems(requests.getContent(), language);
         return PaginatedResponse.from(
-                medicineRequestRepository.findAll(pageable).map(medicineRequestMapper::toResponse)
+                requests.map(request -> toResponse(request, itemsByRequestId))
         );
     }
 
     @Transactional
-    public MedicineRequestResultResponse getMedicineRequestResult(Long medicineRequestId){
+    public MedicineRequestResultResponse getMedicineRequestResult(Long medicineRequestId, String lang){
+        String language = normalizeLanguage(lang);
         MedicineRequest medicineRequest = medicineRequestRepository.findDetailedById(medicineRequestId).orElseThrow(()->new ResourceNotFoundException("Medicine Request not found"));
         if (!medicineRequest.getCustomer().getId().equals(currentUserProvider.get().getId())) {
             throw new AccessDeniedException("You are not allowed to view this medicine request result");
@@ -192,35 +222,56 @@ public class MedicineRequestService {
             }
         }
 
+        List<Long> productIds = new ArrayList<>();
         for(RequestItem requestItem : requestItems){
            PharmacyOfferItem bestOffer = bestOfferItems.get(requestItem.getId());
             MedicineRequestResultItemResponse medicineRequestResultItemResponse;
             if(bestOffer == null){
-                medicineRequestResultItemResponse = MedicineRequestResultMapper.unavailable(requestItem.getProduct().getProductName(), requestItem.getId());
+                medicineRequestResultItemResponse = MedicineRequestResultMapper.unavailable(requestItem.getId());
             }
             else{
                medicineRequestResultItemResponse = medicineRequestResultItemMapper.toResponse(bestOffer);
                totalPrice = totalPrice.add(bestOffer.getProduct().getPrice().multiply(BigDecimal.valueOf(requestItem.getQuantity())));
+               if (bestOffer.getProduct() != null) {
+                   productIds.add(bestOffer.getProduct().getId());
+               }
             }
              medicineRequestResultItemResponseList.add(medicineRequestResultItemResponse);
         }
+
+        if (!productIds.isEmpty()) {
+            Map<Long, ProductSummaryResponse> productsById = productRepository
+                    .findAllLocalized(productIds, language, DEFAULT_LANG)
+                    .stream()
+                    .collect(Collectors.toMap(ProductSummaryResponse::id, Function.identity()));
+            medicineRequestResultItemResponseList.forEach(item -> {
+                if (item.getProductId() != null) {
+                    item.setProduct(productsById.get(item.getProductId()));
+                }
+            });
+        }
+
         return new MedicineRequestResultResponse(medicineRequestResultItemResponseList, totalPrice);
     }
 
     @Transactional(readOnly = true)
-    public PaginatedResponse<MedicineRequestResponse> getPharmacyRequests(Long pharmacyId, Pageable pageable) {
+    public PaginatedResponse<MedicineRequestResponse> getPharmacyRequests(Long pharmacyId, String lang, Pageable pageable) {
+        String language = normalizeLanguage(lang);
         Pharmacy pharmacy = pharmacyRepository.findById(pharmacyId)
                 .orElseThrow(() -> new ResourceNotFoundException("Pharmacy not found"));
         requireCurrentPharmacistForPharmacy(pharmacy);
 
+        Page<MedicineRequest> requests =
+                medicineRequestRepository.findDistinctByOffers_Pharmacy_Id(pharmacyId, pageable);
+        Map<Long, List<MedicineRequestItemResponse>> itemsByRequestId = resolveItems(requests.getContent(), language);
         return PaginatedResponse.from(
-                medicineRequestRepository.findDistinctByOffers_Pharmacy_Id(pharmacyId, pageable)
-                        .map(medicineRequestMapper::toResponse)
+                requests.map(request -> toResponse(request, itemsByRequestId))
         );
     }
 
     @Transactional(readOnly = true)
-    public MedicineRequestResponse getRequestById(Long id) {
+    public MedicineRequestResponse getRequestById(Long id, String lang) {
+        String language = normalizeLanguage(lang);
         MedicineRequest medicineRequest = findRequest(id);
         User currentUser = currentUserProvider.get();
 
@@ -236,36 +287,59 @@ public class MedicineRequestService {
             throw new AccessDeniedException("You are not allowed to view this medicine request");
         }
 
-        return medicineRequestMapper.toResponse(medicineRequest);
+        return toResponse(medicineRequest, resolveItems(List.of(medicineRequest), language));
     }
 
+    private MedicineRequestResponse toResponse(
+            MedicineRequest request,
+            Map<Long, List<MedicineRequestItemResponse>> itemsByRequestId
+    ) {
+        return medicineRequestMapper.toResponse(request, itemsByRequestId.getOrDefault(request.getId(), List.of()));
+    }
 
-//
-//    public MedicineRequestResponse updateRequestStatus(Long id, UpdateMedicineRequestStatusRequest request) {
-//        MedicineRequest medicineRequest = findRequest(id);
-//        User currentUser = currentUserProvider.get();
-//        RequestStatus targetStatus = request.status();
-//
-//        if (targetStatus == null) {
-//            throw new IllegalArgumentException("Request status is required");
-//        }
-//        if (!isApplicationAdmin(currentUser)) {
-//            boolean ownsRequest = currentUser instanceof Customer
-//                    && medicineRequest.getCustomer().getId().equals(currentUser.getId());
-//            if (!ownsRequest) {
-//                throw new AccessDeniedException("You are not allowed to update this medicine request");
-//            }
-//            if (targetStatus != RequestStatus.CANCELLED) {
-//                throw new AccessDeniedException("Customers can only cancel their medicine requests");
-//            }
-//            if (medicineRequest.getStatus() != RequestStatus.PENDING) {
-//                throw new IllegalArgumentException("Only pending medicine requests can be cancelled");
-//            }
-//        }
-//
-//        medicineRequest.setStatus(targetStatus);
-//        return medicineRequestMapper.toResponse(medicineRequest);
-//    }
+    /**
+     * Raw line data is fetched for all requests in one query (product left
+     * null), then the distinct products are resolved in a single localized
+     * query and filled in place. Results are grouped by request id.
+     */
+    private Map<Long, List<MedicineRequestItemResponse>> resolveItems(List<MedicineRequest> requests, String lang) {
+        List<Long> requestIds = requests.stream()
+                .map(MedicineRequest::getId)
+                .toList();
+        if (requestIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<MedicineRequestItemResponse> items = requestItemRepository.findByRequestIdIn(requestIds);
+
+        List<Long> productIds = items.stream()
+                .map(MedicineRequestItemResponse::getProductId)
+                .filter(id -> id != null)   // deleted products have null productId
+                .distinct()
+                .toList();
+
+        if (!productIds.isEmpty()) {
+            Map<Long, ProductSummaryResponse> productsById = productRepository
+                    .findAllLocalized(productIds, lang, DEFAULT_LANG)
+                    .stream()
+                    .collect(Collectors.toMap(ProductSummaryResponse::id, Function.identity()));
+
+            items.forEach(item -> {
+                ProductSummaryResponse product = productsById.get(item.getProductId());
+                item.setProduct(product);
+                if (product != null && product.price() != null) {
+                    item.setUnitPrice(product.price().doubleValue());
+                }
+            });
+        }
+
+        return items.stream().collect(Collectors.groupingBy(
+                MedicineRequestItemResponse::getRequestId,
+                LinkedHashMap::new,
+                Collectors.toList()
+        ));
+    }
+
 
     private MedicineRequest findRequest(Long id) {
         return medicineRequestRepository.findById(id)
@@ -292,6 +366,16 @@ public class MedicineRequestService {
 
     private boolean isApplicationAdmin(User user) {
         return user.getRole() == UserRole.ADMIN;
+    }
+
+    private String normalizeLanguage(String lang) {
+        String language = StringUtils.hasText(lang)
+                ? lang.trim().toLowerCase(Locale.ROOT)
+                : DEFAULT_LANG;
+        if (!DEFAULT_LANG.equals(language) && !ARABIC.equals(language)) {
+            throw new IllegalArgumentException("Unsupported language. Supported values are en and ar");
+        }
+        return language;
     }
 
 }

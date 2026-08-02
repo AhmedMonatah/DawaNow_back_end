@@ -83,9 +83,11 @@ public class MedicineRequestController {
                     content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
                             schema = @Schema(type = "string", format = "binary"))
             )
-            @RequestPart(value = "prescription", required = false) MultipartFile prescription
+            @RequestPart(value = "prescription", required = false) MultipartFile prescription,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang
     ) {
-        MedicineRequestResponse medicineRequestResponse = medicineRequestService.createRequest(request, prescription);
+        MedicineRequestResponse medicineRequestResponse = medicineRequestService.createRequest(request, prescription, lang);
 
         return ResponseEntity.ok(ApiResponse.success("Medicine request created", medicineRequestResponse));
     }
@@ -131,9 +133,11 @@ public class MedicineRequestController {
             )
     })
     public ResponseEntity<ApiResponse<PaginatedResponse<MedicineRequestResponse>>> getCurrentCustomerRequests(
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Medicine requests fetched", medicineRequestService.getCurrentCustomerRequests(pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Medicine requests fetched", medicineRequestService.getCurrentCustomerRequests(lang, pageable)));
     }
 
     @GetMapping("/all")
@@ -159,9 +163,11 @@ public class MedicineRequestController {
             )
     })
     public ResponseEntity<ApiResponse<PaginatedResponse<MedicineRequestResponse>>> getAllRequests(
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Medicine requests fetched", medicineRequestService.getAllRequests(pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Medicine requests fetched", medicineRequestService.getAllRequests(lang, pageable)));
     }
     @GetMapping("/{requestId}/result")
     @PreAuthorize("hasRole('CUSTOMER')")
@@ -190,11 +196,13 @@ public class MedicineRequestController {
             )
     })
     public ResponseEntity<ApiResponse<MedicineRequestResultResponse>> getRequestResult(
-            @PathVariable Long requestId
+            @PathVariable Long requestId,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Medicine request result fetched",
-                medicineRequestService.getMedicineRequestResult(requestId)));
+                medicineRequestService.getMedicineRequestResult(requestId, lang)));
     }
 
 
@@ -267,9 +275,11 @@ public class MedicineRequestController {
     })
     public ResponseEntity<ApiResponse<MedicineRequestResponse>> getRequestById(
             @Parameter(description = "Request ID", example = "1", required = true)
-            @PathVariable Long id
+            @PathVariable Long id,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Medicine request fetched", medicineRequestService.getRequestById(id)));
+        return ResponseEntity.ok(ApiResponse.success("Medicine request fetched", medicineRequestService.getRequestById(id, lang)));
     }
 
 //    @PutMapping("/{id}/status")

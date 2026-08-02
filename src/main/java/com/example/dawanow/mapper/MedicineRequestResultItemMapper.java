@@ -7,7 +7,7 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring", uses = ProductMapper.class)
 public interface MedicineRequestResultItemMapper {
-    @Mapping(target = "product", source = "product")
+    @Mapping(target = "productId", source = "product.id")
     @Mapping(target = "unitPrice", source = "product.price")
     @Mapping(target = "alternative", source = "alternative")
     @Mapping(target = "available", constant = "true")
