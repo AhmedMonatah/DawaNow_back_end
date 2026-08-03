@@ -12,6 +12,7 @@ public record ChatHistoryMessageResponse(
         List<ProductResponse> alternatives,
         List<String> doctorSpecializations,
         List<EmergencyNumberResponse> emergencyNumbers,
+        List<ChatCategoryResponse> categories,
         LocalDateTime createdAt
 ) {
 }

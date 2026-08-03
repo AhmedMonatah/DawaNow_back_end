@@ -57,8 +57,12 @@ public class AiChatPromptFactory {
             """ + SAFETY_RULES + """
 
             Classify the user's last message and return ONLY compact JSON in this exact shape:
-            {"intent":"GREETING|MEDICINE_REQUEST|SYMPTOM_ADVICE|DOCTOR_SPECIALIZATION|EMERGENCY|MEDICINE_USAGE|ADD_TO_CART|CREATE_REQUEST|SET_REMINDER|DELETE_REMINDER|LIST_REMINDERS|OTHER","reply":"","searchQuery":"","quantity":0,"reminderMedicine":"","reminderTimesPerDay":0,"reminderTimes":[],"reminderDurationDays":0,"doctorSpecializations":[],"emergencyServices":[]}
+            {"intent":"GREETING|MEDICINE_REQUEST|SYMPTOM_ADVICE|DOCTOR_SPECIALIZATION|EMERGENCY|MEDICINE_USAGE|CATEGORY_BROWSE|ADD_TO_CART|CREATE_REQUEST|SET_REMINDER|DELETE_REMINDER|LIST_REMINDERS|OTHER","reply":"","searchQuery":"","quantity":0,"reminderMedicine":"","reminderTimesPerDay":0,"reminderTimes":[],"reminderDurationDays":0,"doctorSpecializations":[],"emergencyServices":[],"categoryNames":[]}
             Use 0 or "" for any field that does not apply.
+
+            STORE CATEGORIES (the only valid values for "categoryNames", copy them EXACTLY as written,
+            in English, even when the user writes Arabic):
+            {CATEGORY_LIST}
 
             Intent rules:
             - GREETING: greetings or small talk. Put a short friendly reply in "reply". Never mention any
@@ -79,6 +83,12 @@ public class AiChatPromptFactory {
               unconsciousness, poisoning, severe allergic reaction, fire, violence). Put the needed services
               from AMBULANCE, POLICE, FIRE in "emergencyServices" and a short, calm instruction to call now
               plus basic first-aid guidance in "reply".
+            - CATEGORY_BROWSE: the user asks what sections/departments/kinds of products the store has,
+              or wants to browse a product AREA rather than a specific medicine or symptom ("what do you
+              have for skin care?", "اقسام ايه عندكم؟", "عايز حاجات للبشرة", "فيه فيتامينات؟"). Pick the
+              best matching name(s) from STORE CATEGORIES — exactly 1 for a specific area, up to 4 for a
+              general "what do you have" question — and put them in "categoryNames" EXACTLY as listed.
+              Put a short friendly reply inviting them to browse in "reply".
             - ADD_TO_CART: the user asks to ADD or BUY a medicine — put it in the cart / basket ("add
               Panadol to my cart", "ضيف بانادول للسلة", "هات علبتين بروفين", "I'll take 2 boxes of X").
               Put the product name in "searchQuery" and the number of boxes in "quantity" (0 if unstated).
@@ -156,8 +166,12 @@ public class AiChatPromptFactory {
             ingredients (scientific names) and catalog alternatives that share the same active ingredient.
             Dosing decisions remain the pharmacist's professional judgment.""";
 
-    public String routerSystemPrompt(UserRole role) {
-        return ROUTER_PROMPT.replace("{ROLE_SECTION}", roleSection(role));
+    public String routerSystemPrompt(UserRole role, List<String> categoryNames) {
+        return ROUTER_PROMPT
+                .replace("{ROLE_SECTION}", roleSection(role))
+                .replace("{CATEGORY_LIST}", categoryNames.isEmpty()
+                        ? "(no categories available)"
+                        : String.join(", ", categoryNames));
     }
 
     public String lookupSystemPrompt(UserRole role, int maxProducts) {
@@ -318,6 +332,13 @@ public class AiChatPromptFactory {
         return "ar".equals(language)
                 ? "مش لاقي تذكير بالاسم ده. اكتب \"اعرض تذكيراتي\" لمراجعة تذكيراتك المفعّلة."
                 : "I couldn't find a reminder with that name. Say \"list my reminders\" to review them.";
+    }
+
+    /** Fallback when the router classifies CATEGORY_BROWSE but leaves the reply empty. */
+    public String browseCategoriesReply(String language) {
+        return "ar".equals(language)
+                ? "دي الأقسام اللي ممكن تناسبك — اضغط على أي قسم لتصفح منتجاته 👇"
+                : "Here are the sections that might fit what you need — tap one to browse its products 👇";
     }
 
     // ------------------------------------------------------------------

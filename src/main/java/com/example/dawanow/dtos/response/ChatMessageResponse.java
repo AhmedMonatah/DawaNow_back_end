@@ -11,6 +11,7 @@ public record ChatMessageResponse(
         List<ProductResponse> alternatives,
         List<String> doctorSpecializations,
         List<EmergencyNumberResponse> emergencyNumbers,
+        List<ChatCategoryResponse> categories,
         String disclaimer,
         ChatActionResponse action
 ) {

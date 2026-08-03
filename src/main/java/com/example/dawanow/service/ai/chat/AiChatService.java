@@ -7,18 +7,23 @@ import com.example.dawanow.dtos.ai.ExtractedMedicine;
 import com.example.dawanow.dtos.ai.ExtractedPrescription;
 import com.example.dawanow.dtos.request.ChatMessageRequest;
 import com.example.dawanow.dtos.response.ChatActionResponse;
+import com.example.dawanow.dtos.response.ChatCategoryResponse;
 import com.example.dawanow.dtos.response.ChatHistoryMessageResponse;
 import com.example.dawanow.dtos.response.ChatHistoryResponse;
 import com.example.dawanow.dtos.response.ChatMessageResponse;
 import com.example.dawanow.dtos.response.EmergencyNumberResponse;
 import com.example.dawanow.dtos.response.ProductResponse;
+import com.example.dawanow.entity.Category;
 import com.example.dawanow.entity.ChatConversation;
 import com.example.dawanow.entity.ChatIntent;
 import com.example.dawanow.entity.ChatMessage;
 import com.example.dawanow.entity.ChatMessageRole;
 import com.example.dawanow.entity.User;
 import com.example.dawanow.entity.UserRole;
+import com.example.dawanow.exception.PrescriptionAiUnavailableException;
 import com.example.dawanow.mapper.ProductMapper;
+import com.example.dawanow.repo.CategoryRepository;
+import com.example.dawanow.repo.CategoryTranslationRepository;
 import com.example.dawanow.repo.ChatConversationRepository;
 import com.example.dawanow.repo.ChatMessageRepository;
 import com.example.dawanow.repo.ProductRepository;
@@ -110,13 +115,31 @@ public class AiChatService {
     private final PrescriptionProductMatchingService matchingService;
     private final ChatCartActionService cartActionService;
     private final MedicationReminderService reminderService;
+    private final CategoryRepository categoryRepository;
+    private final CategoryTranslationRepository categoryTranslationRepository;
 
     public ChatMessageResponse sendMessage(ChatMessageRequest request) {
         User user = currentUserProvider.get();
         ChatConversation conversation = currentConversation(user, request.message());
         List<GatewayMessage> history = loadHistory(conversation.getId());
-        saveUserMessage(conversation, request.message());
+        ChatMessage userMessage = saveUserMessage(conversation, request.message());
 
+        // A failed turn must leave no trace: keeping the user message would make
+        // the app's "try again" pile up duplicates in the history.
+        try {
+            return respondToMessage(conversation, user, history, request);
+        } catch (RuntimeException exception) {
+            discardOnFailure(userMessage);
+            throw exception;
+        }
+    }
+
+    private ChatMessageResponse respondToMessage(
+            ChatConversation conversation,
+            User user,
+            List<GatewayMessage> history,
+            ChatMessageRequest request
+    ) {
         String language = languageDetector.detect(request.message());
         List<GatewayMessage> messages = withCurrentTurn(history, request.message());
 
@@ -127,12 +150,15 @@ public class AiChatService {
         }
 
         RouterResult router = modelClient.route(
-                promptFactory.routerSystemPrompt(user.getRole()),
+                promptFactory.routerSystemPrompt(user.getRole(), storeCategoryNames()),
                 messages,
                 properties.getMaxTokens()
         );
         ChatIntent intent = router.intent() == null ? ChatIntent.OTHER : router.intent();
 
+        if (intent == ChatIntent.CATEGORY_BROWSE) {
+            return respondWithCategories(conversation, language, router);
+        }
         if (CART_INTENTS.contains(intent)) {
             return respondWithCartAction(conversation, user, language, intent, router);
         }
@@ -162,8 +188,24 @@ public class AiChatService {
 
         List<ExtractedMedicine> medicines = extractMedicines(validatedImage, language, aiApiKey);
         String userContent = imageMessageContent(caption, medicines);
-        saveUserMessage(conversation, userContent);
+        ChatMessage userMessage = saveUserMessage(conversation, userContent);
 
+        try {
+            return respondToImage(conversation, user, history, caption, language, medicines);
+        } catch (RuntimeException exception) {
+            discardOnFailure(userMessage);
+            throw exception;
+        }
+    }
+
+    private ChatMessageResponse respondToImage(
+            ChatConversation conversation,
+            User user,
+            List<GatewayMessage> history,
+            String caption,
+            String language,
+            List<ExtractedMedicine> medicines
+    ) {
         if (medicines.isEmpty()) {
             String reply = promptFactory.unreadableImageReply(language);
             ChatMessage saved = saveAssistantMessage(conversation, reply, ChatIntent.OTHER,
@@ -420,6 +462,58 @@ public class AiChatService {
                 + " (" + reminder.getDurationDays() + "d)";
     }
 
+    /**
+     * The router picked store categories for the user to browse; resolve them
+     * against the real catalog so the app can navigate with valid ids. Names the
+     * model got wrong are dropped; if none survive, degrade to a plain reply.
+     */
+    private ChatMessageResponse respondWithCategories(
+            ChatConversation conversation,
+            String language,
+            RouterResult router
+    ) {
+        List<ChatCategoryResponse> categories = resolveCategories(router.categoryNames(), language);
+        String reply = StringUtils.hasText(router.reply())
+                ? router.reply()
+                : promptFactory.browseCategoriesReply(language);
+        ChatIntent intent = categories.isEmpty() ? ChatIntent.OTHER : ChatIntent.CATEGORY_BROWSE;
+
+        ChatMessage saved = saveAssistantMessage(conversation, reply, intent,
+                List.of(), List.of(), List.of(), List.of(), categories);
+        return response(conversation, saved, reply, List.of(), List.of(), List.of(), List.of(),
+                categories, null, null);
+    }
+
+    private List<ChatCategoryResponse> resolveCategories(List<String> names, String language) {
+        Map<Long, ChatCategoryResponse> resolved = new LinkedHashMap<>();
+        for (String name : names) {
+            if (!StringUtils.hasText(name)) {
+                continue;
+            }
+            categoryRepository.findByNameIgnoreCase(name.trim()).ifPresent(category ->
+                    resolved.putIfAbsent(category.getId(), localizedCategory(category, language)));
+        }
+        return List.copyOf(resolved.values());
+    }
+
+    private ChatCategoryResponse localizedCategory(Category category, String language) {
+        String name = ARABIC.equals(language)
+                ? categoryTranslationRepository.findByCategoryIdAndLang(category.getId(), ARABIC)
+                        .map(translation -> translation.getName())
+                        .orElse(category.getName())
+                : category.getName();
+        return new ChatCategoryResponse(category.getId(), name);
+    }
+
+    /** English category names fed into the router prompt as the valid vocabulary. */
+    private List<String> storeCategoryNames() {
+        return categoryRepository.findAll().stream()
+                .map(Category::getName)
+                .filter(StringUtils::hasText)
+                .sorted()
+                .toList();
+    }
+
     private ChatMessageResponse respondWithRedFlag(ChatConversation conversation, String language) {
         String reply = promptFactory.redFlagReply(language);
         ChatMessage saved = saveAssistantMessage(conversation, reply, ChatIntent.DOCTOR_SPECIALIZATION,
@@ -476,7 +570,51 @@ public class AiChatService {
                 .toList();
     }
 
+    /**
+     * The vision gateway drops connections as often as the chat gateway does,
+     * but its client has no retry of its own — so transient failures (connect
+     * errors, timeouts, 5xx, 429) are retried here with the same backoff policy
+     * the text chat uses before the error ever reaches the app.
+     */
     private List<ExtractedMedicine> extractMedicines(
+            MedicineImageValidator.ValidatedImage image,
+            String language,
+            String aiApiKey
+    ) {
+        PrescriptionAiUnavailableException lastFailure = null;
+        for (int attempt = 1; attempt <= properties.getMaxAttempts(); attempt++) {
+            try {
+                return analyzeImage(image, language, aiApiKey);
+            } catch (PrescriptionAiUnavailableException exception) {
+                if (!isTransient(exception)) {
+                    throw exception;
+                }
+                lastFailure = exception;
+                log.warn("Chat image analysis attempt {}/{} failed: {}",
+                        attempt, properties.getMaxAttempts(), exception.getMessage());
+                if (attempt < properties.getMaxAttempts()) {
+                    sleepBeforeRetry(attempt);
+                }
+            }
+        }
+        throw lastFailure;
+    }
+
+    private boolean isTransient(PrescriptionAiUnavailableException exception) {
+        int status = exception.getStatus().value();
+        return status >= 500 || status == 429;
+    }
+
+    private void sleepBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(properties.getRetryDelay().multipliedBy(attempt));
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while retrying image analysis", exception);
+        }
+    }
+
+    private List<ExtractedMedicine> analyzeImage(
             MedicineImageValidator.ValidatedImage image,
             String language,
             String aiApiKey
@@ -599,13 +737,28 @@ public class AiChatService {
         return context.toString();
     }
 
-    private void saveUserMessage(ChatConversation conversation, String content) {
+    private ChatMessage saveUserMessage(ChatConversation conversation, String content) {
         ChatMessage message = new ChatMessage();
         message.setConversation(conversation);
         message.setRole(ChatMessageRole.USER);
         message.setContent(content);
-        messageRepository.save(message);
+        ChatMessage saved = messageRepository.save(message);
         touch(conversation, content);
+        return saved;
+    }
+
+    /**
+     * Removes the user's message after a failed turn so a retry cannot pile up
+     * duplicates in the history. Best effort: the original failure matters more
+     * than the cleanup.
+     */
+    private void discardOnFailure(ChatMessage userMessage) {
+        try {
+            messageRepository.delete(userMessage);
+        } catch (RuntimeException exception) {
+            log.warn("Could not discard user message {} after a failed turn: {}",
+                    userMessage.getId(), exception.getMessage());
+        }
     }
 
     private ChatMessage saveAssistantMessage(
@@ -617,6 +770,20 @@ public class AiChatService {
             List<String> doctorSpecializations,
             List<String> emergencyServices
     ) {
+        return saveAssistantMessage(conversation, content, intent, products, alternatives,
+                doctorSpecializations, emergencyServices, List.of());
+    }
+
+    private ChatMessage saveAssistantMessage(
+            ChatConversation conversation,
+            String content,
+            ChatIntent intent,
+            List<ProductResponse> products,
+            List<ProductResponse> alternatives,
+            List<String> doctorSpecializations,
+            List<String> emergencyServices,
+            List<ChatCategoryResponse> categories
+    ) {
         ChatMessage message = new ChatMessage();
         message.setConversation(conversation);
         message.setRole(ChatMessageRole.ASSISTANT);
@@ -626,6 +793,11 @@ public class AiChatService {
         message.setAlternativeProductIds(joinIds(alternatives));
         message.setDoctorSpecializations(joinValues(doctorSpecializations));
         message.setEmergencyServices(joinValues(emergencyServices));
+        message.setCategoryIds(categories.isEmpty()
+                ? null
+                : categories.stream()
+                        .map(category -> String.valueOf(category.id()))
+                        .collect(Collectors.joining(",")));
         return messageRepository.save(message);
     }
 
@@ -648,7 +820,7 @@ public class AiChatService {
             String disclaimer
     ) {
         return response(conversation, message, reply, products, alternatives, doctorSpecializations,
-                emergencyNumbers, disclaimer, null);
+                emergencyNumbers, List.of(), disclaimer, null);
     }
 
     private ChatMessageResponse response(
@@ -662,6 +834,22 @@ public class AiChatService {
             String disclaimer,
             ChatActionResponse action
     ) {
+        return response(conversation, message, reply, products, alternatives, doctorSpecializations,
+                emergencyNumbers, List.of(), disclaimer, action);
+    }
+
+    private ChatMessageResponse response(
+            ChatConversation conversation,
+            ChatMessage message,
+            String reply,
+            List<ProductResponse> products,
+            List<ProductResponse> alternatives,
+            List<String> doctorSpecializations,
+            List<EmergencyNumberResponse> emergencyNumbers,
+            List<ChatCategoryResponse> categories,
+            String disclaimer,
+            ChatActionResponse action
+    ) {
         return new ChatMessageResponse(
                 conversation.getId(),
                 message.getId(),
@@ -671,6 +859,7 @@ public class AiChatService {
                 alternatives,
                 doctorSpecializations,
                 emergencyNumbers,
+                categories,
                 disclaimer,
                 action
         );
@@ -687,8 +876,22 @@ public class AiChatService {
                 resolveProducts(message.getAlternativeProductIds(), language, english),
                 splitValues(message.getDoctorSpecializations()),
                 emergencyNumbers(splitValues(message.getEmergencyServices())),
+                resolveHistoryCategories(message.getCategoryIds(), language),
                 message.getCreatedAt()
         );
+    }
+
+    private List<ChatCategoryResponse> resolveHistoryCategories(String idsCsv, String language) {
+        List<Long> ids = splitIds(idsCsv);
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        List<ChatCategoryResponse> categories = new ArrayList<>(ids.size());
+        for (Long id : ids) {
+            categoryRepository.findById(id)
+                    .ifPresent(category -> categories.add(localizedCategory(category, language)));
+        }
+        return List.copyOf(categories);
     }
 
     private Map<Long, ProductResponse> resolveEnglishProducts(List<ChatMessage> messages) {
