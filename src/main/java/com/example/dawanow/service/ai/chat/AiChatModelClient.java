@@ -187,7 +187,8 @@ public class AiChatModelClient {
                 textList(payload, "doctorSpecializations"),
                 textList(payload, "emergencyServices"),
                 positiveInt(payload, "quantity"),
-                reminderSpec(payload)
+                reminderSpec(payload),
+                textList(payload, "categoryNames")
         );
     }
 
@@ -495,10 +496,11 @@ public class AiChatModelClient {
             List<String> doctorSpecializations,
             List<String> emergencyServices,
             Integer quantity,
-            ReminderSpec reminder
+            ReminderSpec reminder,
+            List<String> categoryNames
     ) {
 
-        /** Convenience for the common intents that carry no cart or reminder data. */
+        /** Convenience for the common intents that carry no cart, reminder or category data. */
         public RouterResult(
                 ChatIntent intent,
                 String reply,
@@ -506,7 +508,22 @@ public class AiChatModelClient {
                 List<String> doctorSpecializations,
                 List<String> emergencyServices
         ) {
-            this(intent, reply, searchQuery, doctorSpecializations, emergencyServices, null, null);
+            this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
+                    null, null, List.of());
+        }
+
+        /** Convenience for cart/reminder intents without category data. */
+        public RouterResult(
+                ChatIntent intent,
+                String reply,
+                String searchQuery,
+                List<String> doctorSpecializations,
+                List<String> emergencyServices,
+                Integer quantity,
+                ReminderSpec reminder
+        ) {
+            this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
+                    quantity, reminder, List.of());
         }
     }
 

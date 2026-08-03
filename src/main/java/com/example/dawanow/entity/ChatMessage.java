@@ -55,6 +55,9 @@ public class ChatMessage {
     @Column(name = "emergency_services", length = 100)
     private String emergencyServices;
 
+    @Column(name = "category_ids", length = 255)
+    private String categoryIds;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

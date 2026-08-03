@@ -28,6 +28,8 @@ import com.example.dawanow.entity.MedicationReminder;
 import com.example.dawanow.entity.User;
 import com.example.dawanow.entity.UserRole;
 import com.example.dawanow.mapper.ProductMapper;
+import com.example.dawanow.repo.CategoryRepository;
+import com.example.dawanow.repo.CategoryTranslationRepository;
 import com.example.dawanow.repo.ChatConversationRepository;
 import com.example.dawanow.repo.ChatMessageRepository;
 import com.example.dawanow.repo.ProductRepository;
@@ -38,10 +40,7 @@ import com.example.dawanow.service.PrescriptionProductMatchingService;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.GatewayMessage;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.GroundedResult;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.RouterResult;
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicLong;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +48,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 @ExtendWith(MockitoExtension.class)
 class AiChatServiceTest {
@@ -80,6 +84,10 @@ class AiChatServiceTest {
     @Mock
     private MedicationReminderService reminderService;
     @Mock
+    private CategoryRepository categoryRepository;
+    @Mock
+    private CategoryTranslationRepository categoryTranslationRepository;
+    @Mock
     private MultipartFile image;
 
     private AiChatProperties properties;
@@ -106,7 +114,9 @@ class AiChatServiceTest {
                 imageValidator,
                 matchingService,
                 cartActionService,
-                reminderService
+                reminderService,
+                categoryRepository,
+                categoryTranslationRepository
         );
 
         customer = user(1L, UserRole.CUSTOMER);
@@ -556,6 +566,66 @@ class AiChatServiceTest {
 
         assertThat(response.intent()).isEqualTo("DELETE_REMINDER");
         assertThat(response.answer()).contains("Concor");
+    }
+
+    @Test
+    void categoryBrowseResolvesRealCategoriesAndDropsInventedOnes() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        com.example.dawanow.entity.Category skinCare = new com.example.dawanow.entity.Category();
+        skinCare.setId(5L);
+        skinCare.setName("SKIN CARE");
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(ChatIntent.CATEGORY_BROWSE, "Have a look:", null,
+                        List.of(), List.of(), null, null, List.of("SKIN CARE", "IMAGINARY")));
+        when(categoryRepository.findByNameIgnoreCase("SKIN CARE"))
+                .thenReturn(Optional.of(skinCare));
+        when(categoryRepository.findByNameIgnoreCase("IMAGINARY")).thenReturn(Optional.empty());
+
+        ChatMessageResponse response = service.sendMessage(
+                new ChatMessageRequest("what sections do you have?"));
+
+        assertThat(response.intent()).isEqualTo("CATEGORY_BROWSE");
+        assertThat(response.categories()).hasSize(1);
+        assertThat(response.categories().getFirst().id()).isEqualTo(5L);
+        assertThat(response.categories().getFirst().name()).isEqualTo("SKIN CARE");
+    }
+
+    @Test
+    void categoryBrowseWithNoRealMatchesDegradesToPlainReply() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(ChatIntent.CATEGORY_BROWSE, "Here you go", null,
+                        List.of(), List.of(), null, null, List.of("IMAGINARY")));
+        when(categoryRepository.findByNameIgnoreCase("IMAGINARY")).thenReturn(Optional.empty());
+
+        ChatMessageResponse response = service.sendMessage(new ChatMessageRequest("sections?"));
+
+        assertThat(response.intent()).isEqualTo("OTHER");
+        assertThat(response.categories()).isEmpty();
+        assertThat(response.answer()).isEqualTo("Here you go");
+    }
+
+    @Test
+    void failedTurnDeletesTheUserMessageSoRetriesCannotDuplicateIt() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenThrow(new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "gateway down"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.sendMessage(new ChatMessageRequest("hello")))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+
+        ArgumentCaptor<ChatMessage> deleted = ArgumentCaptor.forClass(ChatMessage.class);
+        verify(messageRepository).delete(deleted.capture());
+        assertThat(deleted.getValue().getContent()).isEqualTo("hello");
+        assertThat(deleted.getValue().getRole()).isEqualTo(ChatMessageRole.USER);
     }
 
     private void stubCurrentUser(User user) {
