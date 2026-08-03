@@ -20,11 +20,16 @@ import com.example.dawanow.dtos.response.ChatHistoryResponse;
 import com.example.dawanow.dtos.response.ChatMessageResponse;
 import com.example.dawanow.dtos.response.EmergencyNumberResponse;
 import com.example.dawanow.dtos.response.ProductResponse;
+import com.example.dawanow.dtos.response.PharmacistPerformanceEntryResponse;
+import com.example.dawanow.dtos.response.PharmacistRankingResponse;
 import com.example.dawanow.entity.ChatConversation;
 import com.example.dawanow.entity.ChatIntent;
 import com.example.dawanow.entity.ChatMessage;
 import com.example.dawanow.entity.ChatMessageRole;
+import com.example.dawanow.entity.ChatPerformanceMetric;
+import com.example.dawanow.entity.DashboardPeriod;
 import com.example.dawanow.entity.MedicationReminder;
+import com.example.dawanow.entity.Pharmacist;
 import com.example.dawanow.entity.User;
 import com.example.dawanow.entity.UserRole;
 import com.example.dawanow.mapper.ProductMapper;
@@ -34,6 +39,7 @@ import com.example.dawanow.repo.ChatConversationRepository;
 import com.example.dawanow.repo.ChatMessageRepository;
 import com.example.dawanow.repo.ProductRepository;
 import com.example.dawanow.repo.ProductTranslationRepository;
+import com.example.dawanow.repo.PharmacistRepository;
 import com.example.dawanow.service.CurrentUserProvider;
 import com.example.dawanow.service.MedicineImageValidator;
 import com.example.dawanow.service.PrescriptionProductMatchingService;
@@ -88,6 +94,10 @@ class AiChatServiceTest {
     @Mock
     private CategoryTranslationRepository categoryTranslationRepository;
     @Mock
+    private PharmacistPerformanceService pharmacistPerformanceService;
+    @Mock
+    private PharmacistRepository pharmacistRepository;
+    @Mock
     private MultipartFile image;
 
     private AiChatProperties properties;
@@ -116,7 +126,9 @@ class AiChatServiceTest {
                 cartActionService,
                 reminderService,
                 categoryRepository,
-                categoryTranslationRepository
+                categoryTranslationRepository,
+                pharmacistPerformanceService,
+                pharmacistRepository
         );
 
         customer = user(1L, UserRole.CUSTOMER);
@@ -269,6 +281,90 @@ class AiChatServiceTest {
     }
 
     @Test
+    void pharmacistPerformanceReturnsDeterministicStructuredRanking() {
+        User pharmacist = user(2L, UserRole.PHARMACIST);
+        stubCurrentUser(pharmacist);
+        when(conversationRepository.findFirstByUserIdOrderByIdAsc(2L)).thenReturn(Optional.empty());
+        stubConversationSave();
+        stubMessageSaves();
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(
+                        ChatIntent.PHARMACIST_PERFORMANCE,
+                        "",
+                        null,
+                        List.of(),
+                        List.of(),
+                        null,
+                        null,
+                        List.of(),
+                        ChatPerformanceMetric.OFFERS_CREATED,
+                        DashboardPeriod.LAST_MONTH
+                ));
+        PharmacistRankingResponse ranking = new PharmacistRankingResponse(
+                "OFFERS_CREATED",
+                "LAST_MONTH",
+                List.of(new PharmacistPerformanceEntryResponse(1, 7L, "Mona", "Ali", 12))
+        );
+        when(pharmacistPerformanceService.rank(
+                pharmacist, ChatPerformanceMetric.OFFERS_CREATED, DashboardPeriod.LAST_MONTH))
+                .thenReturn(new PharmacistPerformanceService.PerformanceResult(
+                        true,
+                        ChatPerformanceMetric.OFFERS_CREATED,
+                        DashboardPeriod.LAST_MONTH,
+                        10L,
+                        List.of(ranking)
+                ));
+
+        ChatMessageResponse response = service.sendMessage(
+                new ChatMessageRequest("who created the most offers this month?"));
+
+        assertThat(response.intent()).isEqualTo("PHARMACIST_PERFORMANCE");
+        assertThat(response.pharmacistRankings()).containsExactly(ranking);
+        assertThat(response.answer()).contains("Mona Ali").contains("12");
+        verify(messageRepository).save(org.mockito.ArgumentMatchers.argThat(saved ->
+                saved.getRole() == ChatMessageRole.ASSISTANT
+                        && saved.getPerformanceMetric() == ChatPerformanceMetric.OFFERS_CREATED
+                        && saved.getPerformancePeriod() == DashboardPeriod.LAST_MONTH
+                        && Long.valueOf(10L).equals(saved.getPerformancePharmacyId())
+                        && "7:12".equals(saved.getOfferRankingEntries())));
+        verifyNoInteractions(catalogRagService);
+    }
+
+    @Test
+    void unauthorizedPerformanceRequestReturnsChatDenialWithoutRankingData() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(
+                        ChatIntent.PHARMACIST_PERFORMANCE,
+                        "",
+                        null,
+                        List.of(),
+                        List.of(),
+                        null,
+                        null,
+                        List.of(),
+                        ChatPerformanceMetric.BOTH,
+                        null
+                ));
+        when(pharmacistPerformanceService.rank(customer, ChatPerformanceMetric.BOTH, null))
+                .thenReturn(new PharmacistPerformanceService.PerformanceResult(
+                        false,
+                        ChatPerformanceMetric.BOTH,
+                        DashboardPeriod.LAST_WEEK,
+                        null,
+                        List.of()
+                ));
+
+        ChatMessageResponse response = service.sendMessage(
+                new ChatMessageRequest("show me the best pharmacists"));
+
+        assertThat(response.pharmacistRankings()).isEmpty();
+        assertThat(response.answer()).contains("pharmacy admin only");
+    }
+
+    @Test
     void reusesTheSameConversationForEveryMessage() {
         stubCurrentUser(customer);
         stubMessageSaves();
@@ -311,6 +407,92 @@ class AiChatServiceTest {
 
         assertThat(response.conversationId()).isNull();
         assertThat(response.messages()).isEmpty();
+    }
+
+    @Test
+    void historyReconstructsPersistedPharmacistRankings() {
+        User pharmacistUser = user(2L, UserRole.PHARMACIST);
+        stubCurrentUser(pharmacistUser);
+        ChatConversation existing = conversation(9L, pharmacistUser);
+        when(conversationRepository.findFirstByUserIdOrderByIdAsc(2L)).thenReturn(Optional.of(existing));
+
+        ChatMessage message = storedMessage(
+                existing, ChatMessageRole.ASSISTANT, "Top pharmacy team performance");
+        message.setId(50L);
+        message.setIntent(ChatIntent.PHARMACIST_PERFORMANCE);
+        message.setPerformancePeriod(DashboardPeriod.LAST_WEEK);
+        message.setPerformanceMetric(ChatPerformanceMetric.OFFERS_CREATED);
+        message.setPerformancePharmacyId(10L);
+        message.setOfferRankingEntries("7:12,8:6");
+        when(messageRepository.findByConversationIdOrderByCreatedAtAscIdAsc(9L))
+                .thenReturn(List.of(message));
+        when(pharmacistPerformanceService.currentAdminPharmacyId(pharmacistUser)).thenReturn(10L);
+
+        Pharmacist first = pharmacist(7L, "Mona", "Ali");
+        Pharmacist second = pharmacist(8L, "Omar", "Hassan");
+        when(pharmacistRepository.findAllById(any())).thenReturn(List.of(first, second));
+
+        ChatHistoryResponse response = service.getHistory();
+
+        assertThat(response.messages().getFirst().pharmacistRankings()).hasSize(1);
+        assertThat(response.messages().getFirst().pharmacistRankings().getFirst().entries())
+                .extracting(PharmacistPerformanceEntryResponse::count)
+                .containsExactly(12L, 6L);
+    }
+
+    @Test
+    void historyHidesPersistedRankingsFromFormerAdmin() {
+        User pharmacistUser = user(2L, UserRole.PHARMACIST);
+        stubCurrentUser(pharmacistUser);
+        ChatConversation existing = conversation(9L, pharmacistUser);
+        when(conversationRepository.findFirstByUserIdOrderByIdAsc(2L)).thenReturn(Optional.of(existing));
+
+        ChatMessage message = storedMessage(
+                existing, ChatMessageRole.ASSISTANT, "1. **Mona Ali** — **12**");
+        message.setIntent(ChatIntent.PHARMACIST_PERFORMANCE);
+        message.setPerformancePeriod(DashboardPeriod.LAST_WEEK);
+        message.setPerformanceMetric(ChatPerformanceMetric.OFFERS_CREATED);
+        message.setPerformancePharmacyId(10L);
+        message.setOfferRankingEntries("7:12");
+        when(messageRepository.findByConversationIdOrderByCreatedAtAscIdAsc(9L))
+                .thenReturn(List.of(message));
+        when(pharmacistPerformanceService.currentAdminPharmacyId(pharmacistUser)).thenReturn(null);
+
+        ChatHistoryResponse response = service.getHistory();
+
+        assertThat(response.messages().getFirst().pharmacistRankings()).isEmpty();
+        assertThat(response.messages().getFirst().content()).contains("pharmacy admin only");
+        assertThat(response.messages().getFirst().content()).doesNotContain("Mona", "12");
+        verifyNoInteractions(pharmacistRepository);
+    }
+
+    @Test
+    void historyRestoresBothRankingsIncludingAnEmptyMetric() {
+        User pharmacistUser = user(2L, UserRole.PHARMACIST);
+        stubCurrentUser(pharmacistUser);
+        ChatConversation existing = conversation(9L, pharmacistUser);
+        when(conversationRepository.findFirstByUserIdOrderByIdAsc(2L)).thenReturn(Optional.of(existing));
+
+        ChatMessage message = storedMessage(
+                existing, ChatMessageRole.ASSISTANT, "Top pharmacy team performance");
+        message.setIntent(ChatIntent.PHARMACIST_PERFORMANCE);
+        message.setPerformancePeriod(DashboardPeriod.LAST_WEEK);
+        message.setPerformanceMetric(ChatPerformanceMetric.BOTH);
+        message.setPerformancePharmacyId(10L);
+        message.setOfferRankingEntries("7:12");
+        when(messageRepository.findByConversationIdOrderByCreatedAtAscIdAsc(9L))
+                .thenReturn(List.of(message));
+        when(pharmacistPerformanceService.currentAdminPharmacyId(pharmacistUser)).thenReturn(10L);
+        when(pharmacistRepository.findAllById(any()))
+                .thenReturn(List.of(pharmacist(7L, "Mona", "Ali")));
+
+        ChatHistoryResponse response = service.getHistory();
+
+        assertThat(response.messages().getFirst().pharmacistRankings())
+                .extracting(PharmacistRankingResponse::metric)
+                .containsExactly("OFFERS_CREATED", "SUCCESSFUL_ORDERS");
+        assertThat(response.messages().getFirst().pharmacistRankings().getFirst().entries()).hasSize(1);
+        assertThat(response.messages().getFirst().pharmacistRankings().get(1).entries()).isEmpty();
     }
 
     @Test
@@ -663,6 +845,14 @@ class AiChatServiceTest {
         user.setId(id);
         user.setRole(role);
         return user;
+    }
+
+    private Pharmacist pharmacist(Long id, String firstName, String lastName) {
+        Pharmacist pharmacist = new Pharmacist();
+        pharmacist.setId(id);
+        pharmacist.setFirstName(firstName);
+        pharmacist.setLastName(lastName);
+        return pharmacist;
     }
 
     private ChatConversation conversation(Long id, User user) {
