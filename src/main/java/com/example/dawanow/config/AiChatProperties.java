@@ -61,4 +61,25 @@ public class AiChatProperties {
 
     @NotNull
     private Duration retryDelay = Duration.ofSeconds(2);
+
+    /**
+     * A chat add-to-cart only executes when the top catalog match clears this
+     * hybrid score; anything weaker asks the user to pick from candidates
+     * instead of silently adding the wrong medicine.
+     */
+    @Min(0)
+    @Max(1)
+    private double addToCartMinScore = 0.80;
+
+    /** Minimum lead over the runner-up before the top match is trusted alone. */
+    @Min(0)
+    @Max(1)
+    private double addToCartMinGap = 0.10;
+
+    @Min(2)
+    @Max(5)
+    private int maxCartCandidates = 3;
+
+    @NotNull
+    private Duration dashboardSummaryTtl = Duration.ofMinutes(10);
 }

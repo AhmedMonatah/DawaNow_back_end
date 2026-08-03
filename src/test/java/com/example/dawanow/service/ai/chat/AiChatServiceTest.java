@@ -24,6 +24,7 @@ import com.example.dawanow.entity.ChatConversation;
 import com.example.dawanow.entity.ChatIntent;
 import com.example.dawanow.entity.ChatMessage;
 import com.example.dawanow.entity.ChatMessageRole;
+import com.example.dawanow.entity.MedicationReminder;
 import com.example.dawanow.entity.User;
 import com.example.dawanow.entity.UserRole;
 import com.example.dawanow.mapper.ProductMapper;
@@ -75,6 +76,10 @@ class AiChatServiceTest {
     @Mock
     private PrescriptionProductMatchingService matchingService;
     @Mock
+    private ChatCartActionService cartActionService;
+    @Mock
+    private MedicationReminderService reminderService;
+    @Mock
     private MultipartFile image;
 
     private AiChatProperties properties;
@@ -99,7 +104,9 @@ class AiChatServiceTest {
                 properties,
                 prescriptionAiClient,
                 imageValidator,
-                matchingService
+                matchingService,
+                cartActionService,
+                reminderService
         );
 
         customer = user(1L, UserRole.CUSTOMER);
@@ -397,6 +404,158 @@ class AiChatServiceTest {
 
         assertThat(response.answer()).contains("clearer");
         verifyNoInteractions(modelClient);
+    }
+
+    @Test
+    void addToCartExecutesAndReturnsAction() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        ProductResponse panadol = product(7L, "PANADOL ADVANCE", "PARACETAMOL");
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(ChatIntent.ADD_TO_CART, "", "panadol",
+                        List.of(), List.of(), 2, null));
+        when(cartActionService.addToCart("panadol", 2, "en"))
+                .thenReturn(new ChatCartActionService.CartActionOutcome(
+                        ChatCartActionService.Status.ADDED, panadol, List.of(), 2, 3L, List.of()));
+
+        ChatMessageResponse response = service.sendMessage(new ChatMessageRequest("add 2 panadol"));
+
+        assertThat(response.intent()).isEqualTo("ADD_TO_CART");
+        assertThat(response.answer()).contains("PANADOL ADVANCE");
+        assertThat(response.action().type()).isEqualTo("ADDED_TO_CART");
+        assertThat(response.action().addedProductIds()).containsExactly(7L);
+        assertThat(response.action().cartItemCount()).isEqualTo(3L);
+    }
+
+    @Test
+    void addedToCartReplyCarriesInteractionWarning() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        ProductResponse ibuprofen = product(8L, "BRUFEN", "IBUPROFEN");
+        var warning = new com.example.dawanow.dtos.response.InteractionWarningResponse(
+                "HIGH", "Blood thinner + NSAID", "Ask your doctor.", List.of());
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(ChatIntent.ADD_TO_CART, "", "brufen",
+                        List.of(), List.of(), null, null));
+        when(cartActionService.addToCart("brufen", null, "en"))
+                .thenReturn(new ChatCartActionService.CartActionOutcome(
+                        ChatCartActionService.Status.ADDED, ibuprofen, List.of(), 1, 2L, List.of(warning)));
+
+        ChatMessageResponse response = service.sendMessage(new ChatMessageRequest("add brufen"));
+
+        assertThat(response.answer()).contains("Drug interaction warning")
+                .contains("Blood thinner + NSAID");
+    }
+
+    @Test
+    void ambiguousAddToCartOffersCandidatesWithoutAction() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        List<ProductResponse> candidates = List.of(product(1L), product(2L), product(3L));
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(ChatIntent.ADD_TO_CART, "", "panadol",
+                        List.of(), List.of(), null, null));
+        when(cartActionService.addToCart("panadol", null, "en"))
+                .thenReturn(new ChatCartActionService.CartActionOutcome(
+                        ChatCartActionService.Status.AMBIGUOUS, null, candidates, 1, 0, List.of()));
+
+        ChatMessageResponse response = service.sendMessage(new ChatMessageRequest("add panadol"));
+
+        assertThat(response.action()).isNull();
+        assertThat(response.products()).hasSize(3);
+        assertThat(response.answer()).contains("Product 1").contains("Product 3");
+    }
+
+    @Test
+    void createRequestReturnsNavigationActionWithoutSideEffects() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(ChatIntent.CREATE_REQUEST, "", null,
+                        List.of(), List.of(), null, null));
+
+        ChatMessageResponse response = service.sendMessage(new ChatMessageRequest("I want to order"));
+
+        assertThat(response.intent()).isEqualTo("CREATE_REQUEST");
+        assertThat(response.action().type()).isEqualTo("CREATE_REQUEST");
+        verifyNoInteractions(cartActionService);
+    }
+
+    @Test
+    void pharmacistCannotUseCartActions() {
+        stubCurrentUser(user(1L, UserRole.PHARMACIST));
+        stubConversation();
+        stubMessageSaves();
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(ChatIntent.ADD_TO_CART, "", "panadol",
+                        List.of(), List.of(), null, null));
+
+        ChatMessageResponse response = service.sendMessage(new ChatMessageRequest("add panadol"));
+
+        assertThat(response.action()).isNull();
+        assertThat(response.answer()).contains("customer accounts only");
+        verifyNoInteractions(cartActionService);
+    }
+
+    @Test
+    void setReminderConfirmsExactTimesAndDuration() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        var spec = new AiChatModelClient.ReminderSpec("Concor", 2, List.of(), null);
+        MedicationReminder reminder = new MedicationReminder();
+        reminder.setMedicineName("Concor");
+        reminder.setTimesCsv("09:00,21:00");
+        reminder.setDurationDays(7);
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(ChatIntent.SET_REMINDER, "", null,
+                        List.of(), List.of(), null, spec));
+        when(reminderService.create(customer, spec)).thenReturn(reminder);
+        when(reminderService.times(reminder)).thenReturn(List.of("09:00", "21:00"));
+
+        ChatMessageResponse response = service.sendMessage(
+                new ChatMessageRequest("remind me to take concor twice a day"));
+
+        assertThat(response.intent()).isEqualTo("SET_REMINDER");
+        assertThat(response.answer()).contains("Concor").contains("09:00").contains("7");
+    }
+
+    @Test
+    void setReminderWithoutMedicineAsksForIt() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(ChatIntent.SET_REMINDER, "", null,
+                        List.of(), List.of(), null, null));
+
+        ChatMessageResponse response = service.sendMessage(new ChatMessageRequest("remind me"));
+
+        assertThat(response.answer()).contains("Which medicine");
+        verify(reminderService, never()).create(any(), any());
+    }
+
+    @Test
+    void deleteReminderReportsWhatWasCancelled() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        var spec = new AiChatModelClient.ReminderSpec("concor", null, List.of(), null);
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(ChatIntent.DELETE_REMINDER, "", null,
+                        List.of(), List.of(), null, spec));
+        when(reminderService.deactivateByName(customer, "concor"))
+                .thenReturn(new MedicationReminderService.DeletionResult(
+                        MedicationReminderService.DeletionStatus.DELETED, List.of("Concor")));
+
+        ChatMessageResponse response = service.sendMessage(new ChatMessageRequest("stop the concor reminder"));
+
+        assertThat(response.intent()).isEqualTo("DELETE_REMINDER");
+        assertThat(response.answer()).contains("Concor");
     }
 
     private void stubCurrentUser(User user) {

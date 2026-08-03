@@ -1,6 +1,7 @@
 package com.example.dawanow.service.ai.chat;
 
 import com.example.dawanow.entity.UserRole;
+import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -56,7 +57,8 @@ public class AiChatPromptFactory {
             """ + SAFETY_RULES + """
 
             Classify the user's last message and return ONLY compact JSON in this exact shape:
-            {"intent":"GREETING|MEDICINE_REQUEST|SYMPTOM_ADVICE|DOCTOR_SPECIALIZATION|EMERGENCY|MEDICINE_USAGE|OTHER","reply":"","searchQuery":"","doctorSpecializations":[],"emergencyServices":[]}
+            {"intent":"GREETING|MEDICINE_REQUEST|SYMPTOM_ADVICE|DOCTOR_SPECIALIZATION|EMERGENCY|MEDICINE_USAGE|ADD_TO_CART|CREATE_REQUEST|SET_REMINDER|DELETE_REMINDER|LIST_REMINDERS|OTHER","reply":"","searchQuery":"","quantity":0,"reminderMedicine":"","reminderTimesPerDay":0,"reminderTimes":[],"reminderDurationDays":0,"doctorSpecializations":[],"emergencyServices":[]}
+            Use 0 or "" for any field that does not apply.
 
             Intent rules:
             - GREETING: greetings or small talk. Put a short friendly reply in "reply". Never mention any
@@ -77,6 +79,23 @@ public class AiChatPromptFactory {
               unconsciousness, poisoning, severe allergic reaction, fire, violence). Put the needed services
               from AMBULANCE, POLICE, FIRE in "emergencyServices" and a short, calm instruction to call now
               plus basic first-aid guidance in "reply".
+            - ADD_TO_CART: the user asks to ADD or BUY a medicine — put it in the cart / basket ("add
+              Panadol to my cart", "ضيف بانادول للسلة", "هات علبتين بروفين", "I'll take 2 boxes of X").
+              Put the product name in "searchQuery" and the number of boxes in "quantity" (0 if unstated).
+              If the user is picking from options you just offered ("the first one", "التاني"), resolve the
+              chosen product NAME from the earlier turns and put that name in "searchQuery". Leave "reply"
+              empty.
+            - CREATE_REQUEST: the user wants to ORDER / CHECK OUT / send their medicine request to pharmacies
+              ("اعمل الطلب", "I want to order now", "checkout"). Leave "reply" empty.
+            - SET_REMINDER: the user asks to be reminded to take a medicine ("فكرني بالكونكور كل يوم الساعة ٩",
+              "remind me to take X twice a day for a week"). Put the medicine name AS THE USER SAID IT in
+              "reminderMedicine", how many times per day in "reminderTimesPerDay" (0 if unstated), any
+              clock times the user named in "reminderTimes" as 24-hour "HH:mm" strings ("9 صباحا" -> "09:00",
+              "9 مساء" -> "21:00"), and the number of days in "reminderDurationDays" (0 if unstated).
+              Leave "reply" empty.
+            - DELETE_REMINDER: the user asks to cancel or stop a medication reminder ("الغي تذكير الكونكور",
+              "stop reminding me about X"). Put the medicine name in "reminderMedicine". Leave "reply" empty.
+            - LIST_REMINDERS: the user asks what reminders they have. Leave "reply" empty.
             - OTHER: anything not covered above. This includes questions about the conversation itself, such
               as the user asking what they told you earlier — answer those directly from the history in
               "reply". Only steer the user back to health topics when the message is genuinely unrelated to
@@ -202,6 +221,122 @@ public class AiChatPromptFactory {
                         If the symptoms are severe or getting worse, call an ambulance on **123** immediately.
 
                         I won't suggest any medicine for this, because your safety comes first.""";
+    }
+
+    // ------------------------------------------------------------------
+    // Deterministic action replies. Cart contents, reminder times and
+    // navigation confirmations must be exact, so none of these ever come
+    // from the model.
+    // ------------------------------------------------------------------
+
+    public String addedToCartReply(String language, String productName, int quantity) {
+        if ("ar".equals(language)) {
+            return quantity > 1
+                    ? "تمام! ضفت **" + quantity + " ×** **" + productName + "** للسلة ✅"
+                    : "تمام! ضفت **" + productName + "** للسلة ✅";
+        }
+        return quantity > 1
+                ? "Done! Added **" + quantity + " ×** **" + productName + "** to your cart ✅"
+                : "Done! Added **" + productName + "** to your cart ✅";
+    }
+
+    public String pickProductReply(String language, List<String> candidateNames) {
+        StringBuilder options = new StringBuilder();
+        for (int index = 0; index < candidateNames.size(); index++) {
+            options.append(index + 1).append(". **").append(candidateNames.get(index)).append("**\n");
+        }
+        return "ar".equals(language)
+                ? "لقيت أكتر من منتج قريب من طلبك، تقصد أنهي واحد؟\n" + options
+                : "I found more than one close match — which one do you mean?\n" + options;
+    }
+
+    public String createRequestReply(String language) {
+        return "ar".equals(language)
+                ? "تمام، هفتحلك شاشة تأكيد الطلب لتحديد طريقة الاستلام والعنوان والدفع 🛒"
+                : "Great — opening the order confirmation screen so you can choose delivery, "
+                        + "address and payment 🛒";
+    }
+
+    public String actionNotAvailableForPharmacistReply(String language) {
+        return "ar".equals(language)
+                ? "خاصية السلة والطلبات متاحة لحسابات العملاء فقط."
+                : "Cart and ordering actions are available for customer accounts only.";
+    }
+
+    public String interactionWarningHeader(String language) {
+        return "ar".equals(language)
+                ? "\n\n⚠️ **تنبيه تفاعل دوائي:**"
+                : "\n\n⚠️ **Drug interaction warning:**";
+    }
+
+    // ------------------------------------------------------------------
+    // Reminder replies
+    // ------------------------------------------------------------------
+
+    public String reminderSetReply(String language, String medicine, List<String> times, int durationDays) {
+        String joinedTimes = String.join("، ", times);
+        if ("ar".equals(language)) {
+            return "اتظبط! ⏰ هفكرك بـ **" + medicine + "** يوميًا الساعة **" + joinedTimes
+                    + "** لمدة **" + durationDays + "** يوم.";
+        }
+        return "All set! ⏰ I'll remind you to take **" + medicine + "** daily at **"
+                + String.join(", ", times) + "** for **" + durationDays + "** days.";
+    }
+
+    public String reminderMissingMedicineReply(String language) {
+        return "ar".equals(language)
+                ? "تحب أفكرك بأنهي دواء؟ اكتبلي اسمه ومواعيده."
+                : "Which medicine should I remind you about? Tell me its name and times.";
+    }
+
+    public String reminderListReply(String language, List<String> lines) {
+        if (lines.isEmpty()) {
+            return "ar".equals(language)
+                    ? "مفيش تذكيرات أدوية مفعّلة عندك حاليًا."
+                    : "You have no active medication reminders right now.";
+        }
+        String body = String.join("\n", lines);
+        return "ar".equals(language)
+                ? "تذكيراتك المفعّلة:\n" + body
+                : "Your active reminders:\n" + body;
+    }
+
+    public String reminderDeletedReply(String language, String medicine) {
+        return "ar".equals(language)
+                ? "تمام، لغيت تذكير **" + medicine + "** ✅"
+                : "Done — cancelled the reminder for **" + medicine + "** ✅";
+    }
+
+    public String reminderAmbiguousReply(String language, List<String> names) {
+        String joined = String.join(", ", names);
+        return "ar".equals(language)
+                ? "عندك أكتر من تذكير قريب من الاسم ده: " + joined + ". تقصد أنهي واحد؟"
+                : "You have more than one reminder matching that name: " + joined + ". Which one?";
+    }
+
+    public String reminderNotFoundReply(String language) {
+        return "ar".equals(language)
+                ? "مش لاقي تذكير بالاسم ده. اكتب \"اعرض تذكيراتي\" لمراجعة تذكيراتك المفعّلة."
+                : "I couldn't find a reminder with that name. Say \"list my reminders\" to review them.";
+    }
+
+    // ------------------------------------------------------------------
+    // Dashboard summary
+    // ------------------------------------------------------------------
+
+    public String dashboardSummarySystemPrompt(String language) {
+        String target = "ar".equals(language) ? "Arabic (Egyptian tone)" : "English";
+        return """
+                You are Medsy's pharmacy business assistant. You receive one block of dashboard metrics
+                for a pharmacy. Write a short performance summary in %s.
+
+                Rules:
+                - Use ONLY the numbers provided. Never invent or extrapolate figures.
+                - Maximum 120 words: 2-3 sentences on overall performance, then at most 3 bullet
+                  insights (best seller, notable ratio of offers to requests, anything actionable).
+                - Markdown allowed (**bold** the key numbers). Plain text, no JSON, no headings.
+                - Currency is EGP.
+                """.formatted(target);
     }
 
     private String roleSection(UserRole role) {

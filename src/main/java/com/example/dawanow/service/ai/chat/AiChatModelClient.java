@@ -64,6 +64,14 @@ public class AiChatModelClient {
         return parseGroundedResult(content);
     }
 
+    /**
+     * Plain-text completion for callers that want prose, not the router or
+     * grounded JSON contracts (for example the dashboard summary).
+     */
+    public String generateText(String systemPrompt, List<GatewayMessage> messages, int maxTokens) {
+        return complete("Text generation", systemPrompt, messages, maxTokens);
+    }
+
     private String complete(String capability, String systemPrompt, List<GatewayMessage> messages, int maxTokens) {
         requireStudentGatewayConfigured();
 
@@ -167,7 +175,9 @@ public class AiChatModelClient {
                     firstNonBlank(lenientStringField(content, "reply"), content.trim()),
                     lenientStringField(content, "searchQuery"),
                     List.of(),
-                    List.of()
+                    List.of(),
+                    null,
+                    lenientReminderSpec(content)
             );
         }
         return new RouterResult(
@@ -175,8 +185,41 @@ public class AiChatModelClient {
                 text(payload, "reply"),
                 text(payload, "searchQuery"),
                 textList(payload, "doctorSpecializations"),
-                textList(payload, "emergencyServices")
+                textList(payload, "emergencyServices"),
+                positiveInt(payload, "quantity"),
+                reminderSpec(payload)
         );
+    }
+
+    /**
+     * Assembles the nested reminder record from the flat JSON keys the router
+     * emits — the small model fills flat fields far more reliably than nested
+     * objects, and zero/empty doubles as its "unstated" sentinel.
+     */
+    private ReminderSpec reminderSpec(JsonNode payload) {
+        String medicine = text(payload, "reminderMedicine");
+        Integer timesPerDay = positiveInt(payload, "reminderTimesPerDay");
+        List<String> times = textList(payload, "reminderTimes");
+        Integer durationDays = positiveInt(payload, "reminderDurationDays");
+        if ((medicine == null || medicine.isBlank())
+                && timesPerDay == null && times.isEmpty() && durationDays == null) {
+            return null;
+        }
+        return new ReminderSpec(medicine, timesPerDay, times, durationDays);
+    }
+
+    private ReminderSpec lenientReminderSpec(String content) {
+        String medicine = lenientStringField(content, "reminderMedicine");
+        return medicine == null ? null : new ReminderSpec(medicine, null, List.of(), null);
+    }
+
+    private Integer positiveInt(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || !value.isNumber()) {
+            return null;
+        }
+        int number = value.intValue();
+        return number > 0 ? number : null;
     }
 
     private GroundedResult parseGroundedResult(String content) {
@@ -450,7 +493,29 @@ public class AiChatModelClient {
             String reply,
             String searchQuery,
             List<String> doctorSpecializations,
-            List<String> emergencyServices
+            List<String> emergencyServices,
+            Integer quantity,
+            ReminderSpec reminder
+    ) {
+
+        /** Convenience for the common intents that carry no cart or reminder data. */
+        public RouterResult(
+                ChatIntent intent,
+                String reply,
+                String searchQuery,
+                List<String> doctorSpecializations,
+                List<String> emergencyServices
+        ) {
+            this(intent, reply, searchQuery, doctorSpecializations, emergencyServices, null, null);
+        }
+    }
+
+    /** Reminder details extracted by the router; null fields mean "unstated". */
+    public record ReminderSpec(
+            String medicine,
+            Integer timesPerDay,
+            List<String> times,
+            Integer durationDays
     ) {
     }
 
