@@ -6,6 +6,7 @@ import com.example.dawanow.controller.CatalogAiController.ProductMatchResponse;
 import com.example.dawanow.dtos.ai.ExtractedMedicine;
 import com.example.dawanow.dtos.ai.ExtractedPrescription;
 import com.example.dawanow.dtos.request.ChatMessageRequest;
+import com.example.dawanow.dtos.response.ChatActionResponse;
 import com.example.dawanow.dtos.response.ChatHistoryMessageResponse;
 import com.example.dawanow.dtos.response.ChatHistoryResponse;
 import com.example.dawanow.dtos.response.ChatMessageResponse;
@@ -25,9 +26,13 @@ import com.example.dawanow.repo.ProductTranslationRepository;
 import com.example.dawanow.service.CurrentUserProvider;
 import com.example.dawanow.service.MedicineImageValidator;
 import com.example.dawanow.service.PrescriptionProductMatchingService;
+import com.example.dawanow.dtos.response.InteractionWarningResponse;
+import com.example.dawanow.entity.MedicationReminder;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.GatewayMessage;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.GroundedResult;
+import com.example.dawanow.service.ai.chat.AiChatModelClient.ReminderSpec;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.RouterResult;
+import com.example.dawanow.service.ai.chat.ChatCartActionService.CartActionOutcome;
 import com.example.dawanow.service.ai.rag.CatalogRagService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -80,6 +85,13 @@ public class AiChatService {
     /** Intents where the user asked about a named medicine, so a catalog lookup is appropriate. */
     private static final Set<ChatIntent> LOOKUP_INTENTS =
             Set.of(ChatIntent.MEDICINE_REQUEST, ChatIntent.MEDICINE_USAGE);
+    /** Intents that mutate or navigate the shopping flow — customer accounts only. */
+    private static final Set<ChatIntent> CART_INTENTS =
+            Set.of(ChatIntent.ADD_TO_CART, ChatIntent.CREATE_REQUEST);
+    private static final Set<ChatIntent> REMINDER_INTENTS =
+            Set.of(ChatIntent.SET_REMINDER, ChatIntent.DELETE_REMINDER, ChatIntent.LIST_REMINDERS);
+    /** How many interaction warnings a chat confirmation may carry before it gets noisy. */
+    private static final int MAX_CHAT_WARNINGS = 2;
 
     private final ChatConversationRepository conversationRepository;
     private final ChatMessageRepository messageRepository;
@@ -96,6 +108,8 @@ public class AiChatService {
     private final PrescriptionAiClient prescriptionAiClient;
     private final MedicineImageValidator imageValidator;
     private final PrescriptionProductMatchingService matchingService;
+    private final ChatCartActionService cartActionService;
+    private final MedicationReminderService reminderService;
 
     public ChatMessageResponse sendMessage(ChatMessageRequest request) {
         User user = currentUserProvider.get();
@@ -119,6 +133,12 @@ public class AiChatService {
         );
         ChatIntent intent = router.intent() == null ? ChatIntent.OTHER : router.intent();
 
+        if (CART_INTENTS.contains(intent)) {
+            return respondWithCartAction(conversation, user, language, intent, router);
+        }
+        if (REMINDER_INTENTS.contains(intent)) {
+            return respondWithReminder(conversation, user, language, intent, router.reminder());
+        }
         if (LOOKUP_INTENTS.contains(intent)) {
             return respondFromCatalog(conversation, user, messages, language, intent,
                     router.searchQuery(), request.message(), false);
@@ -284,6 +304,120 @@ public class AiChatService {
                 List.of(), List.of(), specializations, emergencyServices);
         return response(conversation, saved, reply, List.of(), List.of(), specializations,
                 emergencyNumbers(emergencyServices), null);
+    }
+
+    /**
+     * ADD_TO_CART executes for real through the existing CartService;
+     * CREATE_REQUEST only returns an action so the app navigates to its own
+     * confirm-request screen. Both are deterministic — no second model call,
+     * because an action confirmation must be exact.
+     */
+    private ChatMessageResponse respondWithCartAction(
+            ChatConversation conversation,
+            User user,
+            String language,
+            ChatIntent intent,
+            RouterResult router
+    ) {
+        if (user.getRole() == UserRole.PHARMACIST) {
+            String reply = promptFactory.actionNotAvailableForPharmacistReply(language);
+            ChatMessage saved = saveAssistantMessage(conversation, reply, ChatIntent.OTHER,
+                    List.of(), List.of(), List.of(), List.of());
+            return response(conversation, saved, reply, List.of(), List.of(), List.of(), List.of(),
+                    null, null);
+        }
+
+        if (intent == ChatIntent.CREATE_REQUEST) {
+            String reply = promptFactory.createRequestReply(language);
+            ChatMessage saved = saveAssistantMessage(conversation, reply, intent,
+                    List.of(), List.of(), List.of(), List.of());
+            return response(conversation, saved, reply, List.of(), List.of(), List.of(), List.of(),
+                    null, ChatActionResponse.createRequest());
+        }
+
+        CartActionOutcome outcome = cartActionService.addToCart(
+                router.searchQuery(), router.quantity(), language);
+        return switch (outcome.status()) {
+            case ADDED -> {
+                ProductResponse product = outcome.product();
+                String reply = promptFactory.addedToCartReply(language, product.name(), outcome.quantity())
+                        + warningSuffix(outcome.interactionWarnings(), language);
+                ChatMessage saved = saveAssistantMessage(conversation, reply, intent,
+                        List.of(product), List.of(), List.of(), List.of());
+                yield response(conversation, saved, reply, List.of(product), List.of(), List.of(),
+                        List.of(), null,
+                        ChatActionResponse.addedToCart(
+                                List.of(product.id()), outcome.quantity(), outcome.cartItemCount()));
+            }
+            case AMBIGUOUS -> {
+                // Candidate names live in the saved reply text, so the flattened
+                // history lets the router resolve "the first one" next turn.
+                String reply = promptFactory.pickProductReply(language,
+                        outcome.candidates().stream().map(ProductResponse::name).toList());
+                ChatMessage saved = saveAssistantMessage(conversation, reply, intent,
+                        outcome.candidates(), List.of(), List.of(), List.of());
+                yield response(conversation, saved, reply, outcome.candidates(), List.of(), List.of(),
+                        List.of(), null, null);
+            }
+            case NOT_FOUND -> {
+                String reply = promptFactory.notFoundReply(language);
+                ChatMessage saved = saveAssistantMessage(conversation, reply, intent,
+                        List.of(), List.of(), List.of(), List.of());
+                yield response(conversation, saved, reply, List.of(), List.of(), List.of(), List.of(),
+                        null, null);
+            }
+        };
+    }
+
+    private String warningSuffix(List<InteractionWarningResponse> warnings, String language) {
+        if (warnings.isEmpty()) {
+            return "";
+        }
+        StringBuilder suffix = new StringBuilder(promptFactory.interactionWarningHeader(language));
+        warnings.stream().limit(MAX_CHAT_WARNINGS).forEach(warning ->
+                suffix.append("\n- ").append(warning.title()));
+        return suffix.toString();
+    }
+
+    private ChatMessageResponse respondWithReminder(
+            ChatConversation conversation,
+            User user,
+            String language,
+            ChatIntent intent,
+            ReminderSpec spec
+    ) {
+        String reply;
+        if (intent == ChatIntent.LIST_REMINDERS) {
+            reply = promptFactory.reminderListReply(language,
+                    reminderService.list(user).stream().map(this::reminderLine).toList());
+        } else if (spec == null || !StringUtils.hasText(spec.medicine())) {
+            reply = promptFactory.reminderMissingMedicineReply(language);
+            intent = ChatIntent.SET_REMINDER;
+        } else if (intent == ChatIntent.SET_REMINDER) {
+            MedicationReminder reminder = reminderService.create(user, spec);
+            reply = promptFactory.reminderSetReply(language, reminder.getMedicineName(),
+                    reminderService.times(reminder), reminder.getDurationDays());
+        } else {
+            MedicationReminderService.DeletionResult result =
+                    reminderService.deactivateByName(user, spec.medicine());
+            reply = switch (result.status()) {
+                case DELETED -> promptFactory.reminderDeletedReply(language,
+                        String.join(", ", result.names()));
+                case AMBIGUOUS -> promptFactory.reminderAmbiguousReply(language, result.names());
+                case NOT_FOUND -> promptFactory.reminderNotFoundReply(language);
+            };
+        }
+
+        ChatMessage saved = saveAssistantMessage(conversation, reply, intent,
+                List.of(), List.of(), List.of(), List.of());
+        return response(conversation, saved, reply, List.of(), List.of(), List.of(), List.of(),
+                null, null);
+    }
+
+    private String reminderLine(MedicationReminder reminder) {
+        return "- **" + reminder.getMedicineName() + "** — "
+                + String.join(", ", reminderService.times(reminder))
+                + " (" + reminder.getDurationDays() + "d)";
     }
 
     private ChatMessageResponse respondWithRedFlag(ChatConversation conversation, String language) {
@@ -513,6 +647,21 @@ public class AiChatService {
             List<EmergencyNumberResponse> emergencyNumbers,
             String disclaimer
     ) {
+        return response(conversation, message, reply, products, alternatives, doctorSpecializations,
+                emergencyNumbers, disclaimer, null);
+    }
+
+    private ChatMessageResponse response(
+            ChatConversation conversation,
+            ChatMessage message,
+            String reply,
+            List<ProductResponse> products,
+            List<ProductResponse> alternatives,
+            List<String> doctorSpecializations,
+            List<EmergencyNumberResponse> emergencyNumbers,
+            String disclaimer,
+            ChatActionResponse action
+    ) {
         return new ChatMessageResponse(
                 conversation.getId(),
                 message.getId(),
@@ -522,7 +671,8 @@ public class AiChatService {
                 alternatives,
                 doctorSpecializations,
                 emergencyNumbers,
-                disclaimer
+                disclaimer,
+                action
         );
     }
 
