@@ -2,7 +2,9 @@ package com.example.dawanow.service.ai.chat;
 
 import com.example.dawanow.config.AiChatProperties;
 import com.example.dawanow.config.AiProperties;
+import com.example.dawanow.entity.ChatPerformanceMetric;
 import com.example.dawanow.entity.ChatIntent;
+import com.example.dawanow.entity.DashboardPeriod;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
@@ -177,7 +179,10 @@ public class AiChatModelClient {
                     List.of(),
                     List.of(),
                     null,
-                    lenientReminderSpec(content)
+                    lenientReminderSpec(content),
+                    List.of(),
+                    parsePerformanceMetric(lenientStringField(content, "performanceMetric")),
+                    parseDashboardPeriod(lenientStringField(content, "performancePeriod"))
             );
         }
         return new RouterResult(
@@ -188,7 +193,9 @@ public class AiChatModelClient {
                 textList(payload, "emergencyServices"),
                 positiveInt(payload, "quantity"),
                 reminderSpec(payload),
-                textList(payload, "categoryNames")
+                textList(payload, "categoryNames"),
+                parsePerformanceMetric(text(payload, "performanceMetric")),
+                parseDashboardPeriod(text(payload, "performancePeriod"))
         );
     }
 
@@ -350,6 +357,25 @@ public class AiChatModelClient {
         }
     }
 
+    private ChatPerformanceMetric parsePerformanceMetric(String value) {
+        return parseEnum(value, ChatPerformanceMetric.class);
+    }
+
+    private DashboardPeriod parseDashboardPeriod(String value) {
+        return parseEnum(value, DashboardPeriod.class);
+    }
+
+    private <T extends Enum<T>> T parseEnum(String value, Class<T> enumType) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Enum.valueOf(enumType, value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
+    }
+
     private String text(JsonNode node, String field) {
         JsonNode value = node.get(field);
         return value != null && value.isString() ? value.asString().trim() : null;
@@ -497,7 +523,9 @@ public class AiChatModelClient {
             List<String> emergencyServices,
             Integer quantity,
             ReminderSpec reminder,
-            List<String> categoryNames
+            List<String> categoryNames,
+            ChatPerformanceMetric performanceMetric,
+            DashboardPeriod performancePeriod
     ) {
 
         /** Convenience for the common intents that carry no cart, reminder or category data. */
@@ -509,7 +537,7 @@ public class AiChatModelClient {
                 List<String> emergencyServices
         ) {
             this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
-                    null, null, List.of());
+                    null, null, List.of(), null, null);
         }
 
         /** Convenience for cart/reminder intents without category data. */
@@ -523,7 +551,22 @@ public class AiChatModelClient {
                 ReminderSpec reminder
         ) {
             this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
-                    quantity, reminder, List.of());
+                    quantity, reminder, List.of(), null, null);
+        }
+
+        /** Convenience for category intents without pharmacist-performance data. */
+        public RouterResult(
+                ChatIntent intent,
+                String reply,
+                String searchQuery,
+                List<String> doctorSpecializations,
+                List<String> emergencyServices,
+                Integer quantity,
+                ReminderSpec reminder,
+                List<String> categoryNames
+        ) {
+            this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
+                    quantity, reminder, categoryNames, null, null);
         }
     }
 

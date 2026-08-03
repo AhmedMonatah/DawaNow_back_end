@@ -1,5 +1,9 @@
 package com.example.dawanow.service.ai.chat;
 
+import com.example.dawanow.dtos.response.PharmacistPerformanceEntryResponse;
+import com.example.dawanow.dtos.response.PharmacistRankingResponse;
+import com.example.dawanow.entity.ChatPerformanceMetric;
+import com.example.dawanow.entity.DashboardPeriod;
 import com.example.dawanow.entity.UserRole;
 import java.util.List;
 import org.springframework.stereotype.Component;
@@ -57,7 +61,7 @@ public class AiChatPromptFactory {
             """ + SAFETY_RULES + """
 
             Classify the user's last message and return ONLY compact JSON in this exact shape:
-            {"intent":"GREETING|MEDICINE_REQUEST|SYMPTOM_ADVICE|DOCTOR_SPECIALIZATION|EMERGENCY|MEDICINE_USAGE|CATEGORY_BROWSE|ADD_TO_CART|CREATE_REQUEST|SET_REMINDER|DELETE_REMINDER|LIST_REMINDERS|OTHER","reply":"","searchQuery":"","quantity":0,"reminderMedicine":"","reminderTimesPerDay":0,"reminderTimes":[],"reminderDurationDays":0,"doctorSpecializations":[],"emergencyServices":[],"categoryNames":[]}
+            {"intent":"GREETING|MEDICINE_REQUEST|SYMPTOM_ADVICE|DOCTOR_SPECIALIZATION|EMERGENCY|MEDICINE_USAGE|CATEGORY_BROWSE|ADD_TO_CART|CREATE_REQUEST|SET_REMINDER|DELETE_REMINDER|LIST_REMINDERS|PHARMACIST_PERFORMANCE|OTHER","reply":"","searchQuery":"","quantity":0,"reminderMedicine":"","reminderTimesPerDay":0,"reminderTimes":[],"reminderDurationDays":0,"doctorSpecializations":[],"emergencyServices":[],"categoryNames":[],"performanceMetric":"","performancePeriod":""}
             Use 0 or "" for any field that does not apply.
 
             STORE CATEGORIES (the only valid values for "categoryNames", copy them EXACTLY as written,
@@ -106,6 +110,13 @@ public class AiChatPromptFactory {
             - DELETE_REMINDER: the user asks to cancel or stop a medication reminder ("الغي تذكير الكونكور",
               "stop reminding me about X"). Put the medicine name in "reminderMedicine". Leave "reply" empty.
             - LIST_REMINDERS: the user asks what reminders they have. Leave "reply" empty.
+            - PHARMACIST_PERFORMANCE: the user asks who among their pharmacy staff created the most offers,
+              produced the most successful orders, or performed best by those measures ("who made the most
+              offers last week?", "top staff by successful orders this month", "مين أكتر صيدلي عمل عروض؟",
+              "مين أكتر صيدلي عمل طلبات ناجحة الشهر ده؟"). Put OFFERS_CREATED, SUCCESSFUL_ORDERS, or BOTH in
+              "performanceMetric". Put LAST_DAY, LAST_WEEK, LAST_MONTH, or LAST_YEAR in "performancePeriod";
+              use "" when no period was stated. Leave "reply" empty. This intent may be classified for any
+              account because authorization is enforced deterministically by the backend.
             - OTHER: anything not covered above. This includes questions about the conversation itself, such
               as the user asking what they told you earlier — answer those directly from the history in
               "reply". Only steer the user back to health topics when the message is genuinely unrelated to
@@ -281,6 +292,95 @@ public class AiChatPromptFactory {
         return "ar".equals(language)
                 ? "\n\n⚠️ **تنبيه تفاعل دوائي:**"
                 : "\n\n⚠️ **Drug interaction warning:**";
+    }
+
+    // ------------------------------------------------------------------
+    // Pharmacy-admin staff performance replies
+    // ------------------------------------------------------------------
+
+    public String pharmacistPerformanceDeniedReply(String language) {
+        return "ar".equals(language)
+                ? "تقارير أداء فريق الصيدلية متاحة **لمسؤول الصيدلية فقط**."
+                : "Pharmacy team performance reports are available to the **pharmacy admin only**.";
+    }
+
+    public String pharmacistPerformanceNoActivityReply(
+            String language,
+            ChatPerformanceMetric metric,
+            DashboardPeriod period
+    ) {
+        String periodLabel = performancePeriodLabel(language, period);
+        if ("ar".equals(language)) {
+            String activity = switch (metric) {
+                case OFFERS_CREATED -> "عروض";
+                case SUCCESSFUL_ORDERS -> "طلبات ناجحة";
+                case BOTH -> "عروض أو طلبات ناجحة";
+            };
+            return "مفيش **" + activity + "** مسجلة لفريق الصيدلية خلال **" + periodLabel + "**.";
+        }
+        String activity = switch (metric) {
+            case OFFERS_CREATED -> "offers";
+            case SUCCESSFUL_ORDERS -> "successful orders";
+            case BOTH -> "offers or successful orders";
+        };
+        return "There are no **" + activity + "** recorded for the pharmacy team during **"
+                + periodLabel + "**.";
+    }
+
+    public String pharmacistPerformanceReply(
+            String language,
+            DashboardPeriod period,
+            List<PharmacistRankingResponse> rankings
+    ) {
+        StringBuilder reply = new StringBuilder();
+        if ("ar".equals(language)) {
+            reply.append("ده ترتيب أداء فريق الصيدلية خلال **")
+                    .append(performancePeriodLabel(language, period))
+                    .append("**:");
+        } else {
+            reply.append("Here is the pharmacy team performance for **")
+                    .append(performancePeriodLabel(language, period))
+                    .append("**:");
+        }
+
+        for (PharmacistRankingResponse ranking : rankings) {
+            reply.append("\n\n**").append(performanceMetricLabel(language, ranking.metric())).append("**\n");
+            if (ranking.entries().isEmpty()) {
+                reply.append("ar".equals(language) ? "مفيش نشاط مسجل.\n" : "No activity recorded.\n");
+                continue;
+            }
+            for (PharmacistPerformanceEntryResponse entry : ranking.entries()) {
+                reply.append(entry.rank()).append(". **")
+                        .append(entry.firstName()).append(' ').append(entry.lastName())
+                        .append("** — **").append(entry.count()).append("**\n");
+            }
+        }
+        return reply.toString().trim();
+    }
+
+    private String performanceMetricLabel(String language, String metric) {
+        boolean offers = ChatPerformanceMetric.OFFERS_CREATED.name().equals(metric);
+        if ("ar".equals(language)) {
+            return offers ? "الأكثر إنشاءً للعروض" : "الأكثر في الطلبات الناجحة";
+        }
+        return offers ? "Most offers created" : "Most successful orders";
+    }
+
+    private String performancePeriodLabel(String language, DashboardPeriod period) {
+        if ("ar".equals(language)) {
+            return switch (period) {
+                case LAST_DAY -> "آخر 24 ساعة";
+                case LAST_WEEK -> "آخر أسبوع";
+                case LAST_MONTH -> "آخر شهر";
+                case LAST_YEAR -> "آخر سنة";
+            };
+        }
+        return switch (period) {
+            case LAST_DAY -> "the last 24 hours";
+            case LAST_WEEK -> "the last week";
+            case LAST_MONTH -> "the last month";
+            case LAST_YEAR -> "the last year";
+        };
     }
 
     // ------------------------------------------------------------------

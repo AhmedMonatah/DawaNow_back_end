@@ -13,5 +13,6 @@ public enum ChatIntent {
     SET_REMINDER,
     DELETE_REMINDER,
     LIST_REMINDERS,
+    PHARMACIST_PERFORMANCE,
     OTHER
 }

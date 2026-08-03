@@ -32,12 +32,19 @@ import com.example.dawanow.service.CurrentUserProvider;
 import com.example.dawanow.service.MedicineImageValidator;
 import com.example.dawanow.service.PrescriptionProductMatchingService;
 import com.example.dawanow.dtos.response.InteractionWarningResponse;
+import com.example.dawanow.dtos.response.PharmacistPerformanceEntryResponse;
+import com.example.dawanow.dtos.response.PharmacistRankingResponse;
 import com.example.dawanow.entity.MedicationReminder;
+import com.example.dawanow.entity.ChatPerformanceMetric;
+import com.example.dawanow.entity.DashboardPeriod;
+import com.example.dawanow.entity.Pharmacist;
+import com.example.dawanow.repo.PharmacistRepository;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.GatewayMessage;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.GroundedResult;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.ReminderSpec;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.RouterResult;
 import com.example.dawanow.service.ai.chat.ChatCartActionService.CartActionOutcome;
+import com.example.dawanow.service.ai.chat.PharmacistPerformanceService.PerformanceResult;
 import com.example.dawanow.service.ai.rag.CatalogRagService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -117,6 +124,8 @@ public class AiChatService {
     private final MedicationReminderService reminderService;
     private final CategoryRepository categoryRepository;
     private final CategoryTranslationRepository categoryTranslationRepository;
+    private final PharmacistPerformanceService pharmacistPerformanceService;
+    private final PharmacistRepository pharmacistRepository;
 
     public ChatMessageResponse sendMessage(ChatMessageRequest request) {
         User user = currentUserProvider.get();
@@ -156,6 +165,9 @@ public class AiChatService {
         );
         ChatIntent intent = router.intent() == null ? ChatIntent.OTHER : router.intent();
 
+        if (intent == ChatIntent.PHARMACIST_PERFORMANCE) {
+            return respondWithPharmacistPerformance(conversation, user, language, router);
+        }
         if (intent == ChatIntent.CATEGORY_BROWSE) {
             return respondWithCategories(conversation, language, router);
         }
@@ -255,9 +267,14 @@ public class AiChatService {
         List<ChatMessage> messages =
                 messageRepository.findByConversationIdOrderByCreatedAtAscIdAsc(conversation.getId());
         Map<Long, ProductResponse> english = resolveEnglishProducts(messages);
+        Long currentAdminPharmacyId = pharmacistPerformanceService.currentAdminPharmacyId(user);
+        Map<Long, Pharmacist> pharmacists = resolveRankingPharmacists(messages, currentAdminPharmacyId);
         return new ChatHistoryResponse(
                 conversation.getId(),
-                messages.stream().map(message -> toHistoryResponse(message, english)).toList()
+                messages.stream()
+                        .map(message -> toHistoryResponse(
+                                message, english, pharmacists, currentAdminPharmacyId))
+                        .toList()
         );
     }
 
@@ -346,6 +363,57 @@ public class AiChatService {
                 List.of(), List.of(), specializations, emergencyServices);
         return response(conversation, saved, reply, List.of(), List.of(), specializations,
                 emergencyNumbers(emergencyServices), null);
+    }
+
+    private ChatMessageResponse respondWithPharmacistPerformance(
+            ChatConversation conversation,
+            User user,
+            String language,
+            RouterResult router
+    ) {
+        PerformanceResult result = pharmacistPerformanceService.rank(
+                user,
+                router.performanceMetric(),
+                router.performancePeriod()
+        );
+
+        String reply;
+        if (!result.authorized()) {
+            reply = promptFactory.pharmacistPerformanceDeniedReply(language);
+        } else if (result.rankings().stream().allMatch(ranking -> ranking.entries().isEmpty())) {
+            reply = promptFactory.pharmacistPerformanceNoActivityReply(
+                    language, result.requestedMetric(), result.period());
+        } else {
+            reply = promptFactory.pharmacistPerformanceReply(language, result.period(), result.rankings());
+        }
+
+        ChatMessage saved = saveAssistantMessage(
+                conversation,
+                reply,
+                ChatIntent.PHARMACIST_PERFORMANCE,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                result.rankings(),
+                result.requestedMetric(),
+                result.period(),
+                result.pharmacyId()
+        );
+        return response(
+                conversation,
+                saved,
+                reply,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                result.rankings(),
+                null,
+                null
+        );
     }
 
     /**
@@ -784,6 +852,24 @@ public class AiChatService {
             List<String> emergencyServices,
             List<ChatCategoryResponse> categories
     ) {
+        return saveAssistantMessage(conversation, content, intent, products, alternatives,
+                doctorSpecializations, emergencyServices, categories, List.of(), null, null, null);
+    }
+
+    private ChatMessage saveAssistantMessage(
+            ChatConversation conversation,
+            String content,
+            ChatIntent intent,
+            List<ProductResponse> products,
+            List<ProductResponse> alternatives,
+            List<String> doctorSpecializations,
+            List<String> emergencyServices,
+            List<ChatCategoryResponse> categories,
+            List<PharmacistRankingResponse> pharmacistRankings,
+            ChatPerformanceMetric performanceMetric,
+            DashboardPeriod performancePeriod,
+            Long performancePharmacyId
+    ) {
         ChatMessage message = new ChatMessage();
         message.setConversation(conversation);
         message.setRole(ChatMessageRole.ASSISTANT);
@@ -798,6 +884,15 @@ public class AiChatService {
                 : categories.stream()
                         .map(category -> String.valueOf(category.id()))
                         .collect(Collectors.joining(",")));
+        if (performanceMetric != null && performancePeriod != null && performancePharmacyId != null) {
+            message.setPerformanceMetric(performanceMetric);
+            message.setPerformancePeriod(performancePeriod);
+            message.setPerformancePharmacyId(performancePharmacyId);
+            message.setOfferRankingEntries(joinRankingEntries(
+                    pharmacistRankings, ChatPerformanceMetric.OFFERS_CREATED));
+            message.setSuccessfulOrderRankingEntries(joinRankingEntries(
+                    pharmacistRankings, ChatPerformanceMetric.SUCCESSFUL_ORDERS));
+        }
         return messageRepository.save(message);
     }
 
@@ -850,6 +945,23 @@ public class AiChatService {
             String disclaimer,
             ChatActionResponse action
     ) {
+        return response(conversation, message, reply, products, alternatives, doctorSpecializations,
+                emergencyNumbers, categories, List.of(), disclaimer, action);
+    }
+
+    private ChatMessageResponse response(
+            ChatConversation conversation,
+            ChatMessage message,
+            String reply,
+            List<ProductResponse> products,
+            List<ProductResponse> alternatives,
+            List<String> doctorSpecializations,
+            List<EmergencyNumberResponse> emergencyNumbers,
+            List<ChatCategoryResponse> categories,
+            List<PharmacistRankingResponse> pharmacistRankings,
+            String disclaimer,
+            ChatActionResponse action
+    ) {
         return new ChatMessageResponse(
                 conversation.getId(),
                 message.getId(),
@@ -860,23 +972,35 @@ public class AiChatService {
                 doctorSpecializations,
                 emergencyNumbers,
                 categories,
+                pharmacistRankings,
                 disclaimer,
                 action
         );
     }
 
-    private ChatHistoryMessageResponse toHistoryResponse(ChatMessage message, Map<Long, ProductResponse> english) {
+    private ChatHistoryMessageResponse toHistoryResponse(
+            ChatMessage message,
+            Map<Long, ProductResponse> english,
+            Map<Long, Pharmacist> pharmacists,
+            Long currentAdminPharmacyId
+    ) {
         String language = languageDetector.detect(message.getContent());
+        boolean protectedPerformance = hasProtectedPerformanceSnapshot(message);
+        boolean canViewPerformance = isPerformanceSnapshotAuthorized(message, currentAdminPharmacyId);
+        String content = protectedPerformance && !canViewPerformance
+                ? promptFactory.pharmacistPerformanceDeniedReply(language)
+                : message.getContent();
         return new ChatHistoryMessageResponse(
                 message.getId(),
                 message.getRole().name(),
-                message.getContent(),
+                content,
                 message.getIntent() == null ? null : message.getIntent().name(),
                 resolveProducts(message.getProductIds(), language, english),
                 resolveProducts(message.getAlternativeProductIds(), language, english),
                 splitValues(message.getDoctorSpecializations()),
                 emergencyNumbers(splitValues(message.getEmergencyServices())),
                 resolveHistoryCategories(message.getCategoryIds(), language),
+                canViewPerformance ? resolveHistoryRankings(message, pharmacists) : List.of(),
                 message.getCreatedAt()
         );
     }
@@ -932,6 +1056,146 @@ public class AiChatService {
             products.add(product);
         }
         return products;
+    }
+
+    private Map<Long, Pharmacist> resolveRankingPharmacists(
+            List<ChatMessage> messages,
+            Long currentAdminPharmacyId
+    ) {
+        if (currentAdminPharmacyId == null) {
+            return Map.of();
+        }
+        Set<Long> ids = new LinkedHashSet<>();
+        for (ChatMessage message : messages) {
+            if (!isPerformanceSnapshotAuthorized(message, currentAdminPharmacyId)) {
+                continue;
+            }
+            splitRankingEntries(message.getOfferRankingEntries()).forEach(entry -> ids.add(entry.pharmacistId()));
+            splitRankingEntries(message.getSuccessfulOrderRankingEntries())
+                    .forEach(entry -> ids.add(entry.pharmacistId()));
+        }
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return pharmacistRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Pharmacist::getId, Function.identity()));
+    }
+
+    private List<PharmacistRankingResponse> resolveHistoryRankings(
+            ChatMessage message,
+            Map<Long, Pharmacist> pharmacists
+    ) {
+        DashboardPeriod period = message.getPerformancePeriod();
+        if (period == null) {
+            return List.of();
+        }
+        List<PharmacistRankingResponse> rankings = new ArrayList<>(2);
+        ChatPerformanceMetric metric = message.getPerformanceMetric();
+        if (metric == null) {
+            addLegacyHistoryRanking(rankings, ChatPerformanceMetric.OFFERS_CREATED, period,
+                    message.getOfferRankingEntries(), pharmacists);
+            addLegacyHistoryRanking(rankings, ChatPerformanceMetric.SUCCESSFUL_ORDERS, period,
+                    message.getSuccessfulOrderRankingEntries(), pharmacists);
+        } else {
+            if (metric == ChatPerformanceMetric.OFFERS_CREATED || metric == ChatPerformanceMetric.BOTH) {
+                addHistoryRanking(rankings, ChatPerformanceMetric.OFFERS_CREATED, period,
+                        message.getOfferRankingEntries(), pharmacists, true);
+            }
+            if (metric == ChatPerformanceMetric.SUCCESSFUL_ORDERS || metric == ChatPerformanceMetric.BOTH) {
+                addHistoryRanking(rankings, ChatPerformanceMetric.SUCCESSFUL_ORDERS, period,
+                        message.getSuccessfulOrderRankingEntries(), pharmacists, true);
+            }
+        }
+        return List.copyOf(rankings);
+    }
+
+    private void addLegacyHistoryRanking(
+            List<PharmacistRankingResponse> rankings,
+            ChatPerformanceMetric metric,
+            DashboardPeriod period,
+            String savedEntries,
+            Map<Long, Pharmacist> pharmacists
+    ) {
+        addHistoryRanking(rankings, metric, period, savedEntries, pharmacists,
+                StringUtils.hasText(savedEntries));
+    }
+
+    private void addHistoryRanking(
+            List<PharmacistRankingResponse> rankings,
+            ChatPerformanceMetric metric,
+            DashboardPeriod period,
+            String savedEntries,
+            Map<Long, Pharmacist> pharmacists,
+            boolean includeEmpty
+    ) {
+        List<PharmacistPerformanceEntryResponse> entries = new ArrayList<>();
+        for (SavedRankingEntry saved : splitRankingEntries(savedEntries)) {
+            Pharmacist pharmacist = pharmacists.get(saved.pharmacistId());
+            if (pharmacist == null) {
+                continue;
+            }
+            entries.add(new PharmacistPerformanceEntryResponse(
+                    entries.size() + 1,
+                    pharmacist.getId(),
+                    pharmacist.getFirstName(),
+                    pharmacist.getLastName(),
+                    saved.count()
+            ));
+        }
+        if (includeEmpty || !entries.isEmpty()) {
+            rankings.add(new PharmacistRankingResponse(metric.name(), period.name(), List.copyOf(entries)));
+        }
+    }
+
+    private boolean hasProtectedPerformanceSnapshot(ChatMessage message) {
+        return message.getIntent() == ChatIntent.PHARMACIST_PERFORMANCE
+                && (message.getPerformancePharmacyId() != null
+                || message.getPerformancePeriod() != null
+                || StringUtils.hasText(message.getOfferRankingEntries())
+                || StringUtils.hasText(message.getSuccessfulOrderRankingEntries()));
+    }
+
+    private boolean isPerformanceSnapshotAuthorized(ChatMessage message, Long currentAdminPharmacyId) {
+        return currentAdminPharmacyId != null
+                && message.getPerformancePharmacyId() != null
+                && currentAdminPharmacyId.equals(message.getPerformancePharmacyId());
+    }
+
+    private String joinRankingEntries(
+            List<PharmacistRankingResponse> rankings,
+            ChatPerformanceMetric metric
+    ) {
+        return rankings.stream()
+                .filter(ranking -> metric.name().equals(ranking.metric()))
+                .findFirst()
+                .map(ranking -> ranking.entries().stream()
+                        .map(entry -> entry.pharmacistId() + ":" + entry.count())
+                        .collect(Collectors.joining(",")))
+                .filter(StringUtils::hasText)
+                .orElse(null);
+    }
+
+    private List<SavedRankingEntry> splitRankingEntries(String csv) {
+        if (!StringUtils.hasText(csv)) {
+            return List.of();
+        }
+        List<SavedRankingEntry> entries = new ArrayList<>();
+        for (String value : csv.split(",")) {
+            String[] pair = value.trim().split(":", 2);
+            if (pair.length != 2) {
+                continue;
+            }
+            try {
+                long pharmacistId = Long.parseLong(pair[0].trim());
+                long count = Long.parseLong(pair[1].trim());
+                if (pharmacistId > 0 && count >= 0) {
+                    entries.add(new SavedRankingEntry(pharmacistId, count));
+                }
+            } catch (NumberFormatException ignored) {
+                // Skip malformed ranking entries rather than failing the whole history.
+            }
+        }
+        return List.copyOf(entries);
     }
 
     private List<String> normalizeEmergencyServices(List<String> services) {
@@ -1015,5 +1279,8 @@ public class AiChatService {
 
     private String value(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private record SavedRankingEntry(long pharmacistId, long count) {
     }
 }

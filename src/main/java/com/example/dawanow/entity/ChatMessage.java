@@ -58,6 +58,26 @@ public class ChatMessage {
     @Column(name = "category_ids", length = 255)
     private String categoryIds;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "performance_period", length = 32)
+    private DashboardPeriod performancePeriod;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "performance_metric", length = 32)
+    private ChatPerformanceMetric performanceMetric;
+
+    /** Pharmacy whose admin was authorized when this performance snapshot was created. */
+    @Column(name = "performance_pharmacy_id")
+    private Long performancePharmacyId;
+
+    /** Compact pharmacistId:count pairs for replaying admin-only performance cards. */
+    @Column(name = "offer_ranking_entries", length = 255)
+    private String offerRankingEntries;
+
+    /** Compact pharmacistId:count pairs for replaying admin-only performance cards. */
+    @Column(name = "successful_order_ranking_entries", length = 255)
+    private String successfulOrderRankingEntries;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
