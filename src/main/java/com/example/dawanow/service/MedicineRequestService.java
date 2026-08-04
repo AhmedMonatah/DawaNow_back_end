@@ -250,7 +250,7 @@ public class MedicineRequestService {
             });
         }
 
-        return new MedicineRequestResultResponse(medicineRequestResultItemResponseList, totalPrice);
+        return new MedicineRequestResultResponse(medicineRequestResultItemResponseList, totalPrice, medicineRequest.getPaymentMethod());
     }
 
     @Transactional(readOnly = true)
