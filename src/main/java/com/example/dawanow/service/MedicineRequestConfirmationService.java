@@ -40,6 +40,7 @@ public class MedicineRequestConfirmationService {
     private final PharmacySelectionOptimizer selectionOptimizer;
     private final NotificationService notificationService;
     private final NotificationFactory notificationFactory;
+    private final RequestResultSseService requestResultSseService;
 
     @Transactional
     public ConfirmationResponse confirm(Long requestId, ConfirmSelectionRequest selection) {
@@ -83,6 +84,8 @@ public class MedicineRequestConfirmationService {
                 notificationFactory.orderCreated(order),
                 order.getId()
         ));
+
+        requestResultSseService.closeForRequest(requestId);
 
 
         List<OrderSummaryResponse> summaries = orders.stream()

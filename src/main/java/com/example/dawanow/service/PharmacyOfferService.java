@@ -111,6 +111,7 @@ public class PharmacyOfferService {
         }
         //offer.setTotalPrice(totalOfferPrice);
         pharmacyOfferRepository.save(offer);
+        medicineRequestService.updateRequestItemStatuses(requestId, offer, lang);
         return toResponse(offer, resolveItems(List.of(offer), language));
     }
 

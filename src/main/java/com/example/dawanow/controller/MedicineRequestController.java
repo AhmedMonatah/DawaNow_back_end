@@ -11,6 +11,7 @@ import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.service.FileStorageService;
 import com.example.dawanow.service.MedicineRequestService;
 import com.example.dawanow.service.MedicineRequestConfirmationService;
+import com.example.dawanow.service.RequestResultSseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -28,6 +29,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/api/v1/requests")
@@ -38,6 +40,7 @@ public class MedicineRequestController {
     private final MedicineRequestService medicineRequestService;
     private final FileStorageService fileStorageService;
     private final MedicineRequestConfirmationService medicineRequestConfirmationService;
+    private final RequestResultSseService requestResultSseService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('CUSTOMER')")
@@ -203,6 +206,27 @@ public class MedicineRequestController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Medicine request result fetched",
                 medicineRequestService.getMedicineRequestResult(requestId, lang)));
+    }
+
+    @GetMapping(value = "/{requestId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(
+            summary = "Stream medicine request result updates",
+            description = "Customer only. Opens a Server-Sent Events stream for the current medicine request result. "
+                    + "Receives an initial 'snapshot' event with the current result, then 'request-item-updated' events "
+                    + "whenever a new offer makes a previously unavailable request item available. The stream stays "
+                    + "open for the request search timeout and closes earlier when the request is confirmed.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    public SseEmitter streamRequestResult(
+            @PathVariable Long requestId,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang
+    ) {
+        MedicineRequestResultResponse snapshot = medicineRequestService.getMedicineRequestResult(requestId, lang);
+        SseEmitter emitter = requestResultSseService.subscribe(requestId);
+        requestResultSseService.sendSnapshot(requestId, snapshot);
+        return emitter;
     }
 
 
