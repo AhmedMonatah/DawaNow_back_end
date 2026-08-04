@@ -24,10 +24,10 @@ public interface PharmacistPresenceRepository extends JpaRepository<PharmacistPr
     """)
     List<Long> findOnDutyPharmacistIdsForPharmacy(@Param("pharmacyId") Long pharmacyId);
 
-    @Modifying
-    @Query("""
-        UPDATE PharmacistPresence p SET p.onDuty = false, p.updatedAt = CURRENT_TIMESTAMP
-        WHERE p.onDuty = true AND p.lastHeartbeatAt < :threshold
-    """)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+        UPDATE pharmacist_presence SET is_on_duty = false, updated_at = NOW()
+        WHERE is_on_duty = true AND last_heartbeat_at < :threshold
+        """, nativeQuery = true)
     int flipStaleToOffDuty(@Param("threshold") Instant threshold);
 }

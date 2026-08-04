@@ -70,7 +70,7 @@ public class MedicineRequestConfirmationService {
         validateSelectedItems(medicineRequest, selectedOfferItems);
 
         List<PharmacyOfferItem> optimizedItems = selectionOptimizer.optimize(selectedOfferItems);
-        List<Order> orders = createOrders(medicineRequest, optimizedItems, selection.paymentMethod());
+        List<Order> orders = createOrders(medicineRequest, optimizedItems, medicineRequest.getPaymentMethod());
         updateOfferStatuses(medicineRequest.getId(), optimizedItems);
         medicineRequest.setStatus(RequestStatus.COMPLETED);
 

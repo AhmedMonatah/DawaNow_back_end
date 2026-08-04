@@ -91,9 +91,11 @@ public class PharmacyController {
             )
     })
     public ResponseEntity<ApiResponse<PaginatedResponse<MedicineRequestResponse>>> getCurrentPharmacyRequests(
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang,
             @ParameterObject Pageable pageable) {
 
-        PaginatedResponse<MedicineRequestResponse> requests = medicineRequestService.getCurrentPharmacyRequests(pageable);
+        PaginatedResponse<MedicineRequestResponse> requests = medicineRequestService.getCurrentPharmacyRequests(lang, pageable);
 
         return ResponseEntity.ok(ApiResponse.success("Pharmacy requests fetched successfully", requests));
     }
