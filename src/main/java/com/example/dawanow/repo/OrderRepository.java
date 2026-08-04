@@ -117,5 +117,4 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             Pageable pageable
     );
 
-    Optional<Order> findByPaymentIntentId(String paymentIntentId);
 }

@@ -34,7 +34,7 @@ public class MasterOrder {
     private List<Order> orders = new ArrayList<>();
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "request_id", nullable = false, unique = true)
+    @JoinColumn(name = "medicine_request_id", nullable = false, unique = true)
     private MedicineRequest request;
 
     @Column(name = "payment_intent_id", unique = true, length = 255)
@@ -57,6 +57,13 @@ public class MasterOrder {
 
     private BigDecimal totalPrice;
 
+    @Enumerated(EnumType.STRING)
+    @Column
     OrderStatus orderStatus = OrderStatus.PREPARING;
+
+    public void addCustomerOrder(Order order) {
+        this.orders.add(order);
+        order.setMasterOrder(this);
+    }
 
 }

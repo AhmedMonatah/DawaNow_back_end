@@ -6,10 +6,8 @@ import com.example.dawanow.dtos.response.OrderSummaryResponse;
 import com.example.dawanow.entity.*;
 import com.example.dawanow.exception.ResourceNotFoundException;
 import com.example.dawanow.factory.NotificationFactory;
-import com.example.dawanow.repo.MedicineRequestRepository;
-import com.example.dawanow.repo.OrderRepository;
-import com.example.dawanow.repo.PharmacyOfferItemRepository;
-import com.example.dawanow.repo.PharmacyOfferRepository;
+import com.example.dawanow.repo.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -36,6 +34,7 @@ public class MedicineRequestConfirmationService {
     private final PharmacyOfferRepository pharmacyOfferRepository;
     private final PharmacyOfferItemRepository pharmacyOfferItemRepository;
     private final OrderRepository orderRepository;
+    private final MasterOrderRepository masterOrderRepository;
     private final CurrentUserProvider currentUserProvider;
     private final PharmacySelectionOptimizer selectionOptimizer;
     private final NotificationService notificationService;
@@ -48,7 +47,7 @@ public class MedicineRequestConfirmationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Medicine request not found"));
 
         validateRequestCanBeConfirmed(medicineRequest, customer);
-        if (orderRepository.existsByOfferRequestId(requestId)) {
+        if (masterOrderRepository.existsByRequestId(medicineRequest.getId())) {
             throw new IllegalArgumentException("This medicine request has already been confirmed");
         }
 
@@ -68,18 +67,14 @@ public class MedicineRequestConfirmationService {
         }
 
         validateSelectedItems(medicineRequest, selectedOfferItems);
-
-        List<PharmacyOfferItem> optimizedItems = selectionOptimizer.optimize(selectedOfferItems);
-        List<Order> orders = createOrders(medicineRequest, optimizedItems);
         FulfillmentMethod fulfillmentMethod = selection.fulfillmentMethod();
 
 
+
         MasterOrder masterOrder = new MasterOrder();
-        masterOrder.setOrders(orders);
-        masterOrder.setTotalPrice(orders.stream().map(Order::getTotalPrice).reduce(BigDecimal.ZERO, BigDecimal::add));
         masterOrder.setFulfillmentMethod(fulfillmentMethod);
         masterOrder.setUser(customer);
-
+        masterOrder.setRequest(medicineRequest);
 
         PaymentMethod paymentMethod = medicineRequest.getPaymentMethod();
         masterOrder.setPaymentMethod(paymentMethod);
@@ -92,18 +87,25 @@ public class MedicineRequestConfirmationService {
             masterOrder.setPaidAt(null);
         }
 
+
+
+        List<PharmacyOfferItem> optimizedItems = selectionOptimizer.optimize(selectedOfferItems);
+        List<Order> orders = createOrders(medicineRequest, optimizedItems);
+
+        orders.forEach(masterOrder::addCustomerOrder);
+
+        masterOrder.setTotalPrice(orders.stream().map(Order::getTotalPrice).reduce(BigDecimal.ZERO, BigDecimal::add));
+
         updateOfferStatuses(medicineRequest.getId(), optimizedItems);
         medicineRequest.setStatus(RequestStatus.COMPLETED);
 
-
-
-        orderRepository.saveAll(orders);
-        orderRepository.flush();
+        masterOrderRepository.save(masterOrder);
 
         orders.forEach(order -> notificationService.sendToPharmacy(
                 notificationFactory.orderCreated(order),
                 order.getId()
         ));
+
 
 
         List<OrderSummaryResponse> summaries = orders.stream()
@@ -171,8 +173,7 @@ public class MedicineRequestConfirmationService {
 
     private List<Order> createOrders(
             MedicineRequest medicineRequest,
-            List<PharmacyOfferItem> selectedItems
-    ) {
+            List<PharmacyOfferItem> selectedItems) {
         Map<Long, List<PharmacyOfferItem>> itemsByPharmacy = new LinkedHashMap<>();
         for (PharmacyOfferItem selectedItem : selectedItems) {
             Long pharmacyId = selectedItem.getOffer().getPharmacy().getId();

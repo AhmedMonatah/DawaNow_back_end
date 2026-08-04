@@ -7,6 +7,7 @@ import java.util.Optional;
 
 
 public interface MasterOrderRepository extends JpaRepository<MasterOrder, Long> {
-    Optional<MasterOrder> findByOrderId(Long orderId);
+    Optional<MasterOrder> findById(Long orderId);
     Optional<MasterOrder> findByPaymentIntentId(String paymentIntentId);
+    Boolean existsByRequestId(Long medicineRequestId);
 }
