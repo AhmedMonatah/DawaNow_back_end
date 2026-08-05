@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.dawanow.config.AiChatProperties;
 import com.example.dawanow.config.AiProperties;
+import com.example.dawanow.entity.ChatPerformanceDirection;
 import com.example.dawanow.entity.ChatPerformanceMetric;
 import com.example.dawanow.entity.ChatIntent;
 import com.example.dawanow.entity.DashboardPeriod;
@@ -136,7 +137,8 @@ class AiChatModelClientTest {
     void routeParsesPharmacistPerformanceFields() {
         nextResponse.set("{\"output_text\":\"{\\\"intent\\\":\\\"PHARMACIST_PERFORMANCE\\\","
                 + "\\\"reply\\\":\\\"\\\",\\\"performanceMetric\\\":\\\"BOTH\\\","
-                + "\\\"performancePeriod\\\":\\\"LAST_MONTH\\\"}\"}");
+                + "\\\"performancePeriod\\\":\\\"LAST_MONTH\\\","
+                + "\\\"performanceDirection\\\":\\\"BOTTOM\\\"}\"}");
 
         RouterResult result = client.route(
                 "system", List.of(new GatewayMessage("user", "top staff this month")), 300);
@@ -144,6 +146,7 @@ class AiChatModelClientTest {
         assertThat(result.intent()).isEqualTo(ChatIntent.PHARMACIST_PERFORMANCE);
         assertThat(result.performanceMetric()).isEqualTo(ChatPerformanceMetric.BOTH);
         assertThat(result.performancePeriod()).isEqualTo(DashboardPeriod.LAST_MONTH);
+        assertThat(result.performanceDirection()).isEqualTo(ChatPerformanceDirection.BOTTOM);
     }
 
     @Test
