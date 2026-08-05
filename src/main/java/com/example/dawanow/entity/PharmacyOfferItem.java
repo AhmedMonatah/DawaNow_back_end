@@ -40,12 +40,9 @@ public class PharmacyOfferItem {
     @JoinColumn(name = "product_id")
     private Product product;
 
-    boolean alternative=false;
+    private boolean alternative = false;
 
 //    @Enumerated(EnumType.STRING)
 //    @Column(nullable = false)
 //    private OfferItemStatus status = OfferItemStatus.PENDING;
 }
-
-// select exist from pharmacyOfferItem  poi
-// group by list
