@@ -66,6 +66,10 @@ public class ChatMessage {
     @Column(name = "performance_metric", length = 32)
     private ChatPerformanceMetric performanceMetric;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "performance_direction", length = 16)
+    private ChatPerformanceDirection performanceDirection;
+
     /** Pharmacy whose admin was authorized when this performance snapshot was created. */
     @Column(name = "performance_pharmacy_id")
     private Long performancePharmacyId;

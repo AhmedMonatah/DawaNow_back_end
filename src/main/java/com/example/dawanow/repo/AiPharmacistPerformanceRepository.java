@@ -17,6 +17,18 @@ public interface AiPharmacistPerformanceRepository extends Repository<Pharmacist
     Optional<Pharmacist> findById(Long id);
 
     @Query("""
+            SELECT pharmacist
+            FROM Pharmacist pharmacist
+            WHERE pharmacist.pharmacy.id = :pharmacyId
+              AND pharmacist.id <> :adminPharmacistId
+            ORDER BY pharmacist.id ASC
+            """)
+    List<Pharmacist> findCurrentRegularPharmacists(
+            @Param("pharmacyId") Long pharmacyId,
+            @Param("adminPharmacistId") Long adminPharmacistId
+    );
+
+    @Query("""
             SELECT pharmacist.id AS pharmacistId,
                    pharmacist.firstName AS firstName,
                    pharmacist.lastName AS lastName,

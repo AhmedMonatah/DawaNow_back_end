@@ -2,6 +2,7 @@ package com.example.dawanow.service.ai.chat;
 
 import com.example.dawanow.dtos.response.PharmacistPerformanceEntryResponse;
 import com.example.dawanow.dtos.response.PharmacistRankingResponse;
+import com.example.dawanow.entity.ChatPerformanceDirection;
 import com.example.dawanow.entity.ChatPerformanceMetric;
 import com.example.dawanow.entity.DashboardPeriod;
 import com.example.dawanow.entity.UserRole;
@@ -61,7 +62,7 @@ public class AiChatPromptFactory {
             """ + SAFETY_RULES + """
 
             Classify the user's last message and return ONLY compact JSON in this exact shape:
-            {"intent":"GREETING|MEDICINE_REQUEST|SYMPTOM_ADVICE|DOCTOR_SPECIALIZATION|EMERGENCY|MEDICINE_USAGE|CATEGORY_BROWSE|ADD_TO_CART|CREATE_REQUEST|SET_REMINDER|DELETE_REMINDER|LIST_REMINDERS|PHARMACIST_PERFORMANCE|OTHER","reply":"","searchQuery":"","quantity":0,"reminderMedicine":"","reminderTimesPerDay":0,"reminderTimes":[],"reminderDurationDays":0,"doctorSpecializations":[],"emergencyServices":[],"categoryNames":[],"performanceMetric":"","performancePeriod":""}
+            {"intent":"GREETING|MEDICINE_REQUEST|SYMPTOM_ADVICE|DOCTOR_SPECIALIZATION|EMERGENCY|MEDICINE_USAGE|CATEGORY_BROWSE|ADD_TO_CART|CREATE_REQUEST|SET_REMINDER|DELETE_REMINDER|LIST_REMINDERS|PHARMACIST_PERFORMANCE|OTHER","reply":"","searchQuery":"","quantity":0,"reminderMedicine":"","reminderTimesPerDay":0,"reminderTimes":[],"reminderDurationDays":0,"doctorSpecializations":[],"emergencyServices":[],"categoryNames":[],"performanceMetric":"","performancePeriod":"","performanceDirection":""}
             Use 0 or "" for any field that does not apply.
 
             STORE CATEGORIES (the only valid values for "categoryNames", copy them EXACTLY as written,
@@ -110,13 +111,15 @@ public class AiChatPromptFactory {
             - DELETE_REMINDER: the user asks to cancel or stop a medication reminder ("الغي تذكير الكونكور",
               "stop reminding me about X"). Put the medicine name in "reminderMedicine". Leave "reply" empty.
             - LIST_REMINDERS: the user asks what reminders they have. Leave "reply" empty.
-            - PHARMACIST_PERFORMANCE: the user asks who among their pharmacy staff created the most offers,
-              produced the most successful orders, or performed best by those measures ("who made the most
-              offers last week?", "top staff by successful orders this month", "مين أكتر صيدلي عمل عروض؟",
-              "مين أكتر صيدلي عمل طلبات ناجحة الشهر ده؟"). Put OFFERS_CREATED, SUCCESSFUL_ORDERS, or BOTH in
-              "performanceMetric". Put LAST_DAY, LAST_WEEK, LAST_MONTH, or LAST_YEAR in "performancePeriod";
-              use "" when no period was stated. Leave "reply" empty. This intent may be classified for any
-              account because authorization is enforced deterministically by the backend.
+            - PHARMACIST_PERFORMANCE: the user asks who among their pharmacy staff created the most or least
+              offers, produced the most or least successful orders, or performed best/worst by those measures
+              ("who made the most offers last week?", "least successful orders this month",
+              "مين أكتر صيدلي عمل عروض؟", "مين أقل صيدلي عمل طلبات ناجحة الشهر ده؟"). Put OFFERS_CREATED,
+              SUCCESSFUL_ORDERS, or BOTH in "performanceMetric". Put LAST_DAY, LAST_WEEK, LAST_MONTH, or
+              LAST_YEAR in "performancePeriod"; use "" when no period was stated. Put TOP for most/best and
+              BOTTOM for least/worst in "performanceDirection"; use "" when no direction was stated. Leave
+              "reply" empty. This intent may be classified for any account because authorization is enforced
+              deterministically by the backend.
             - OTHER: anything not covered above. This includes questions about the conversation itself, such
               as the user asking what they told you earlier — answer those directly from the history in
               "reply". Only steer the user back to health topics when the message is genuinely unrelated to
@@ -330,21 +333,28 @@ public class AiChatPromptFactory {
     public String pharmacistPerformanceReply(
             String language,
             DashboardPeriod period,
+            ChatPerformanceDirection direction,
             List<PharmacistRankingResponse> rankings
     ) {
         StringBuilder reply = new StringBuilder();
         if ("ar".equals(language)) {
-            reply.append("ده ترتيب أداء فريق الصيدلية خلال **")
+            reply.append(direction == ChatPerformanceDirection.BOTTOM
+                            ? "ده ترتيب الأقل أداءً في فريق الصيدلية خلال **"
+                            : "ده ترتيب الأعلى أداءً في فريق الصيدلية خلال **")
                     .append(performancePeriodLabel(language, period))
                     .append("**:");
         } else {
-            reply.append("Here is the pharmacy team performance for **")
+            reply.append(direction == ChatPerformanceDirection.BOTTOM
+                            ? "Here are the lowest-performing pharmacy team members for **"
+                            : "Here are the top-performing pharmacy team members for **")
                     .append(performancePeriodLabel(language, period))
                     .append("**:");
         }
 
         for (PharmacistRankingResponse ranking : rankings) {
-            reply.append("\n\n**").append(performanceMetricLabel(language, ranking.metric())).append("**\n");
+            reply.append("\n\n**")
+                    .append(performanceMetricLabel(language, ranking.metric(), direction))
+                    .append("**\n");
             if (ranking.entries().isEmpty()) {
                 reply.append("ar".equals(language) ? "مفيش نشاط مسجل.\n" : "No activity recorded.\n");
                 continue;
@@ -358,10 +368,20 @@ public class AiChatPromptFactory {
         return reply.toString().trim();
     }
 
-    private String performanceMetricLabel(String language, String metric) {
+    private String performanceMetricLabel(
+            String language,
+            String metric,
+            ChatPerformanceDirection direction
+    ) {
         boolean offers = ChatPerformanceMetric.OFFERS_CREATED.name().equals(metric);
         if ("ar".equals(language)) {
+            if (direction == ChatPerformanceDirection.BOTTOM) {
+                return offers ? "الأقل إنشاءً للعروض" : "الأقل في الطلبات الناجحة";
+            }
             return offers ? "الأكثر إنشاءً للعروض" : "الأكثر في الطلبات الناجحة";
+        }
+        if (direction == ChatPerformanceDirection.BOTTOM) {
+            return offers ? "Fewest offers created" : "Fewest successful orders";
         }
         return offers ? "Most offers created" : "Most successful orders";
     }
