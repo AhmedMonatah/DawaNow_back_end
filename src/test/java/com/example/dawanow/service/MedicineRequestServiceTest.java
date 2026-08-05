@@ -114,7 +114,7 @@ class MedicineRequestServiceTest {
 
     @Test
     void updatesNotFoundToFoundAndPublishesDelta() {
-        RequestItemStatus upgraded = runUpdateWith(RequestItemStatus.NOT_FOUND, false);
+        RequestItemStatus upgraded = runUpdateWith(RequestItemStatus.NOT_FOUND, false, false);
 
         assertThat(upgraded).isEqualTo(RequestItemStatus.FOUND);
 
@@ -129,7 +129,7 @@ class MedicineRequestServiceTest {
 
     @Test
     void updatesNotFoundToAlternativeFoundWithAlternativeProduct() {
-        RequestItemStatus upgraded = runUpdateWith(RequestItemStatus.NOT_FOUND, true);
+        RequestItemStatus upgraded = runUpdateWith(RequestItemStatus.NOT_FOUND, true, false);
 
         assertThat(upgraded).isEqualTo(RequestItemStatus.ALTERNATIVE_FOUND);
 
@@ -143,28 +143,45 @@ class MedicineRequestServiceTest {
 
     @Test
     void updatesAlternativeFoundToFound() {
-        RequestItemStatus upgraded = runUpdateWith(RequestItemStatus.ALTERNATIVE_FOUND, false);
+        RequestItemStatus upgraded = runUpdateWith(RequestItemStatus.ALTERNATIVE_FOUND, false, false);
 
         assertThat(upgraded).isEqualTo(RequestItemStatus.FOUND);
     }
 
     @Test
     void alternativeOfferDoesNotDowngradeFound() {
-        RequestItemStatus upgraded = runUpdateWith(RequestItemStatus.FOUND, true);
+        RequestItemStatus upgraded = runUpdateWith(RequestItemStatus.FOUND, true, false);
 
         assertThat(upgraded).isEqualTo(RequestItemStatus.FOUND);
         verifyNoInteractions(requestResultSseService);
     }
 
     @Test
-    void alternativeOfferLeavesAlternativeFound() {
-        RequestItemStatus upgraded = runUpdateWith(RequestItemStatus.ALTERNATIVE_FOUND, true);
+    void repeatAlternativeLeavesAlternativeFoundUnchanged() {
+        RequestItemStatus upgraded = runUpdateWith(RequestItemStatus.ALTERNATIVE_FOUND, true, true);
 
         assertThat(upgraded).isEqualTo(RequestItemStatus.ALTERNATIVE_FOUND);
         verifyNoInteractions(requestResultSseService);
     }
 
-    private RequestItemStatus runUpdateWith(RequestItemStatus initialStatus, boolean alternativeOffer) {
+    @Test
+    void newAlternativeWhileAlternativeFoundPublishesWithoutRegressingStatus() {
+        RequestItemStatus upgraded = runUpdateWith(RequestItemStatus.ALTERNATIVE_FOUND, true, false);
+
+        assertThat(upgraded).isEqualTo(RequestItemStatus.ALTERNATIVE_FOUND);
+
+        ArgumentCaptor<RequestResultUpdateEvent> captor = ArgumentCaptor.forClass(RequestResultUpdateEvent.class);
+        verify(requestResultSseService).publishDelta(eq(8L), captor.capture());
+        RequestItemStatusUpdate update = captor.getValue().updatedItems().getFirst();
+        assertThat(update.status()).isEqualTo(RequestItemStatus.ALTERNATIVE_FOUND);
+        assertThat(update.product().id()).isEqualTo(11L);
+    }
+
+    private RequestItemStatus runUpdateWith(
+            RequestItemStatus initialStatus,
+            boolean alternativeOffer,
+            boolean priorAlternativeExists
+    ) {
         Customer customer = new Customer();
         customer.setId(3L);
 
@@ -193,6 +210,11 @@ class MedicineRequestServiceTest {
         offer.setItems(List.of(offerItem));
 
         when(medicineRequestRepository.findDetailedById(8L)).thenReturn(Optional.of(request));
+
+        if (alternativeOffer) {
+            lenient().when(pharmacyOfferItemRepository.existsPriorAlternative(1L, 11L, 5L))
+                    .thenReturn(priorAlternativeExists);
+        }
 
         ProductSummaryResponse summary = new ProductSummaryResponse(
                 11L, "panadol", "بانادول", null, null, null, new BigDecimal("10.00"),

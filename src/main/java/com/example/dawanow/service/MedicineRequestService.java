@@ -41,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -207,15 +208,14 @@ public class MedicineRequestService {
     /**
      * Updates request item statuses from the items of a single newly created
      * offer, using the existing status already stored on each RequestItem.
-     * Transitions: NOT_FOUND -> FOUND (exact offer) / ALTERNATIVE_FOUND
-     * (alternative offer), and ALTERNATIVE_FOUND -> FOUND when an exact offer
-     * arrives. Statuses already FOUND are left untouched. For items that become
-     * ALTERNATIVE_FOUND the localized alternative product is included in the
-     * SSE delta. Pushes an SSE delta for any item whose status changed. Runs
-     * inside the offer-creation transaction and takes the pessimistic write
-     * lock on the request row, so concurrent offers for the same request are
-     * serialized and an older alternative offer can never regress a FOUND
-     * status.
+     * Exact offers upgrade status to FOUND. Alternative offers are only emitted
+     * when they introduce a genuinely NEW alternative (no prior alternative
+     * offer item for the same request item/product, excluding the current
+     * offer); repeats are silently ignored and never regress a status. The SSE
+     * delta carries the newly found alternative product. Runs inside the
+     * offer-creation transaction and takes the pessimistic write lock on the
+     * request row, so concurrent offers for the same request are serialized
+     * and an older alternative offer can never regress a FOUND status.
      */
     @Transactional
     public void updateRequestItemStatuses(Long requestId, PharmacyOffer offer, String lang) {
@@ -225,17 +225,7 @@ public class MedicineRequestService {
 
         List<RequestItemStatusUpdate> pending = new ArrayList<>();
         Map<Long, Long> alternativeProductIdByRequestItemId = new HashMap<>();
-        for (PharmacyOfferItem item : offer.getItems()) {
-            RequestItem requestItem = item.getRequestItem();
-            RequestItemStatus newStatus = nextStatus(requestItem.getStatus(), item.isAlternative());
-            if (newStatus != null) {
-                requestItem.setStatus(newStatus);
-                if (newStatus == RequestItemStatus.ALTERNATIVE_FOUND && item.getProduct() != null) {
-                    alternativeProductIdByRequestItemId.put(requestItem.getId(), item.getProduct().getId());
-                }
-                pending.add(new RequestItemStatusUpdate(requestItem.getId(), newStatus, null));
-            }
-        }
+        collectStatusUpdates(offer, pending, alternativeProductIdByRequestItemId);
 
         if (pending.isEmpty()) {
             return;
@@ -254,6 +244,39 @@ public class MedicineRequestService {
                 .toList();
 
         publishAfterCommit(requestId, new RequestResultUpdateEvent(requestId, updatedItems));
+    }
+
+    private void collectStatusUpdates(
+            PharmacyOffer offer,
+            List<RequestItemStatusUpdate> pending,
+            Map<Long, Long> alternativeProductIdByRequestItemId
+    ) {
+        for (PharmacyOfferItem item : offer.getItems()) {
+            RequestItem requestItem = item.getRequestItem();
+            Long requestItemId = requestItem.getId();
+
+            if (item.isAlternative()) {
+                if (requestItem.getStatus() == RequestItemStatus.FOUND || item.getProduct() == null) {
+                    continue;
+                }
+                boolean newAlternative = !existsPriorAlternative(requestItemId, item.getProduct().getId(), offer.getId());
+                if (!newAlternative) {
+                    continue;
+                }
+                if (requestItem.getStatus() == RequestItemStatus.NOT_FOUND) {
+                    requestItem.setStatus(RequestItemStatus.ALTERNATIVE_FOUND);
+                }
+                alternativeProductIdByRequestItemId.put(requestItemId, item.getProduct().getId());
+                pending.add(new RequestItemStatusUpdate(requestItemId, RequestItemStatus.ALTERNATIVE_FOUND, null));
+            } else if (requestItem.getStatus() != RequestItemStatus.FOUND) {
+                requestItem.setStatus(RequestItemStatus.FOUND);
+                pending.add(new RequestItemStatusUpdate(requestItemId, RequestItemStatus.FOUND, null));
+            }
+        }
+    }
+
+    private boolean existsPriorAlternative(Long requestItemId, Long productId, Long excludedOfferId) {
+        return pharmacyOfferItemRepository.existsPriorAlternative(requestItemId, productId, excludedOfferId);
     }
 
     private Map<Long, ProductSummaryResponse> resolveAlternativeProducts(
@@ -304,7 +327,47 @@ public class MedicineRequestService {
             });
         }
 
+        populateAlternatives(medicineRequestResultItemResponseList, bestOfferItems, language);
+
         return new MedicineRequestResultResponse(medicineRequestResultItemResponseList, totalPrice, medicineRequest.getPaymentMethod());
+    }
+
+    private void populateAlternatives(
+            List<MedicineRequestResultItemResponse> responses,
+            Map<Long, PharmacyOfferItem> bestOfferItems,
+            String language
+    ) {
+        List<Long> alternativeRequestItemIds = bestOfferItems.values().stream()
+                .filter(PharmacyOfferItem::isAlternative)
+                .map(item -> item.getRequestItem().getId())
+                .distinct()
+                .toList();
+
+        if (alternativeRequestItemIds.isEmpty()) {
+            return;
+        }
+
+        Map<Long, List<Long>> productIdsByRequestItemId = pharmacyOfferItemRepository
+                .findAlternativeProductIdsByRequestItemIdIn(alternativeRequestItemIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        row -> (Long) row[0],
+                        Collectors.mapping(row -> (Long) row[1], Collectors.toList())));
+
+        Map<Long, ProductSummaryResponse> productsById = productRepository
+                .findAllLocalized(productIdsByRequestItemId.values().stream().flatMap(List::stream).distinct().toList(), language, DEFAULT_LANG)
+                .stream()
+                .collect(Collectors.toMap(ProductSummaryResponse::id, Function.identity()));
+
+        responses.forEach(item -> {
+            List<ProductSummaryResponse> alternatives = productIdsByRequestItemId
+                    .getOrDefault(item.getRequestItemId(), List.of())
+                    .stream()
+                    .map(productsById::get)
+                    .filter(Objects::nonNull)
+                    .toList();
+            item.setAlternatives(alternatives);
+        });
     }
 
     private Map<Long, PharmacyOfferItem> bestOfferItems(MedicineRequest medicineRequest) {
@@ -324,16 +387,6 @@ public class MedicineRequestService {
             }
         }
         return bestOfferItems;
-    }
-
-    private RequestItemStatus nextStatus(RequestItemStatus current, boolean alternative) {
-        if (current == RequestItemStatus.NOT_FOUND) {
-            return alternative ? RequestItemStatus.ALTERNATIVE_FOUND : RequestItemStatus.FOUND;
-        }
-        if (current == RequestItemStatus.ALTERNATIVE_FOUND && !alternative) {
-            return RequestItemStatus.FOUND;
-        }
-        return null;
     }
 
     private void publishAfterCommit(Long requestId, RequestResultUpdateEvent event) {

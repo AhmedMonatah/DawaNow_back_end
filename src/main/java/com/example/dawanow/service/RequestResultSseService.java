@@ -40,12 +40,18 @@ public class RequestResultSseService {
     private long searchTimeoutMinutes;
 
     public SseEmitter subscribe(Long requestId) {
-        SseEmitter emitter = new SseEmitter(searchTimeoutMinutes * 60_000L);
+        SseEmitter emitter = new SseEmitter(searchTimeoutMinutes * 60_000L + 30_000L);
         emittersByRequestId.computeIfAbsent(requestId, id -> new CopyOnWriteArrayList<>()).add(emitter);
 
         emitter.onCompletion(() -> remove(requestId, emitter));
-        emitter.onTimeout(() -> remove(requestId, emitter));
-        emitter.onError(error -> remove(requestId, emitter));
+        emitter.onTimeout(() -> {
+            finish(emitter, "timeout");
+            remove(requestId, emitter);
+        });
+        emitter.onError(error -> {
+            finish(emitter, "error");
+            remove(requestId, emitter);
+        });
         return emitter;
     }
 
@@ -67,13 +73,17 @@ public class RequestResultSseService {
             return;
         }
         for (SseEmitter emitter : emitters) {
-            try {
-                emitter.send(SseEmitter.event().name("stream-closed").data("confirmed"));
-            } catch (IOException ignored) {
-                // client already gone
-            }
-            emitter.complete();
+            finish(emitter, "confirmed");
         }
+    }
+
+    private void finish(SseEmitter emitter, String reason) {
+        try {
+            emitter.send(SseEmitter.event().name("stream-closed").data(reason));
+        } catch (IOException ignored) {
+            // client already gone
+        }
+        emitter.complete();
     }
 
     @Scheduled(fixedRateString = "${dawanow.request.sse-heartbeat-seconds:20}000")
