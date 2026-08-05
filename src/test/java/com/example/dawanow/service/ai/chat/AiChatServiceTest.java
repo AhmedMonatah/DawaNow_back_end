@@ -26,6 +26,7 @@ import com.example.dawanow.entity.ChatConversation;
 import com.example.dawanow.entity.ChatIntent;
 import com.example.dawanow.entity.ChatMessage;
 import com.example.dawanow.entity.ChatMessageRole;
+import com.example.dawanow.entity.ChatPerformanceDirection;
 import com.example.dawanow.entity.ChatPerformanceMetric;
 import com.example.dawanow.entity.DashboardPeriod;
 import com.example.dawanow.entity.MedicationReminder;
@@ -303,14 +304,16 @@ class AiChatServiceTest {
         PharmacistRankingResponse ranking = new PharmacistRankingResponse(
                 "OFFERS_CREATED",
                 "LAST_MONTH",
+                "TOP",
                 List.of(new PharmacistPerformanceEntryResponse(1, 7L, "Mona", "Ali", 12))
         );
         when(pharmacistPerformanceService.rank(
-                pharmacist, ChatPerformanceMetric.OFFERS_CREATED, DashboardPeriod.LAST_MONTH))
+                pharmacist, ChatPerformanceMetric.OFFERS_CREATED, DashboardPeriod.LAST_MONTH, null))
                 .thenReturn(new PharmacistPerformanceService.PerformanceResult(
                         true,
                         ChatPerformanceMetric.OFFERS_CREATED,
                         DashboardPeriod.LAST_MONTH,
+                        ChatPerformanceDirection.TOP,
                         10L,
                         List.of(ranking)
                 ));
@@ -325,9 +328,62 @@ class AiChatServiceTest {
                 saved.getRole() == ChatMessageRole.ASSISTANT
                         && saved.getPerformanceMetric() == ChatPerformanceMetric.OFFERS_CREATED
                         && saved.getPerformancePeriod() == DashboardPeriod.LAST_MONTH
+                        && saved.getPerformanceDirection() == ChatPerformanceDirection.TOP
                         && Long.valueOf(10L).equals(saved.getPerformancePharmacyId())
                         && "7:12".equals(saved.getOfferRankingEntries())));
         verifyNoInteractions(catalogRagService);
+    }
+
+    @Test
+    void leastPerformanceRequestReturnsAndPersistsBottomDirection() {
+        User pharmacist = user(2L, UserRole.PHARMACIST);
+        stubCurrentUser(pharmacist);
+        when(conversationRepository.findFirstByUserIdOrderByIdAsc(2L)).thenReturn(Optional.empty());
+        stubConversationSave();
+        stubMessageSaves();
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(
+                        ChatIntent.PHARMACIST_PERFORMANCE,
+                        "",
+                        null,
+                        List.of(),
+                        List.of(),
+                        null,
+                        null,
+                        List.of(),
+                        ChatPerformanceMetric.SUCCESSFUL_ORDERS,
+                        DashboardPeriod.LAST_WEEK,
+                        ChatPerformanceDirection.BOTTOM
+                ));
+        PharmacistRankingResponse ranking = new PharmacistRankingResponse(
+                "SUCCESSFUL_ORDERS",
+                "LAST_WEEK",
+                "BOTTOM",
+                List.of(new PharmacistPerformanceEntryResponse(1, 8L, "Omar", "Hassan", 0))
+        );
+        when(pharmacistPerformanceService.rank(
+                pharmacist,
+                ChatPerformanceMetric.SUCCESSFUL_ORDERS,
+                DashboardPeriod.LAST_WEEK,
+                ChatPerformanceDirection.BOTTOM
+        )).thenReturn(new PharmacistPerformanceService.PerformanceResult(
+                true,
+                ChatPerformanceMetric.SUCCESSFUL_ORDERS,
+                DashboardPeriod.LAST_WEEK,
+                ChatPerformanceDirection.BOTTOM,
+                10L,
+                List.of(ranking)
+        ));
+
+        ChatMessageResponse response = service.sendMessage(
+                new ChatMessageRequest("who completed the least successful orders last week?"));
+
+        assertThat(response.pharmacistRankings()).containsExactly(ranking);
+        assertThat(response.answer()).contains("lowest-performing").contains("Omar Hassan");
+        verify(messageRepository).save(org.mockito.ArgumentMatchers.argThat(saved ->
+                saved.getRole() == ChatMessageRole.ASSISTANT
+                        && saved.getPerformanceDirection() == ChatPerformanceDirection.BOTTOM
+                        && "8:0".equals(saved.getSuccessfulOrderRankingEntries())));
     }
 
     @Test
@@ -348,11 +404,12 @@ class AiChatServiceTest {
                         ChatPerformanceMetric.BOTH,
                         null
                 ));
-        when(pharmacistPerformanceService.rank(customer, ChatPerformanceMetric.BOTH, null))
+        when(pharmacistPerformanceService.rank(customer, ChatPerformanceMetric.BOTH, null, null))
                 .thenReturn(new PharmacistPerformanceService.PerformanceResult(
                         false,
                         ChatPerformanceMetric.BOTH,
                         DashboardPeriod.LAST_WEEK,
+                        ChatPerformanceDirection.TOP,
                         null,
                         List.of()
                 ));
@@ -435,6 +492,8 @@ class AiChatServiceTest {
         ChatHistoryResponse response = service.getHistory();
 
         assertThat(response.messages().getFirst().pharmacistRankings()).hasSize(1);
+        assertThat(response.messages().getFirst().pharmacistRankings().getFirst().direction())
+                .isEqualTo("TOP");
         assertThat(response.messages().getFirst().pharmacistRankings().getFirst().entries())
                 .extracting(PharmacistPerformanceEntryResponse::count)
                 .containsExactly(12L, 6L);
@@ -478,6 +537,7 @@ class AiChatServiceTest {
         message.setIntent(ChatIntent.PHARMACIST_PERFORMANCE);
         message.setPerformancePeriod(DashboardPeriod.LAST_WEEK);
         message.setPerformanceMetric(ChatPerformanceMetric.BOTH);
+        message.setPerformanceDirection(ChatPerformanceDirection.BOTTOM);
         message.setPerformancePharmacyId(10L);
         message.setOfferRankingEntries("7:12");
         when(messageRepository.findByConversationIdOrderByCreatedAtAscIdAsc(9L))
@@ -491,6 +551,9 @@ class AiChatServiceTest {
         assertThat(response.messages().getFirst().pharmacistRankings())
                 .extracting(PharmacistRankingResponse::metric)
                 .containsExactly("OFFERS_CREATED", "SUCCESSFUL_ORDERS");
+        assertThat(response.messages().getFirst().pharmacistRankings())
+                .extracting(PharmacistRankingResponse::direction)
+                .containsOnly("BOTTOM");
         assertThat(response.messages().getFirst().pharmacistRankings().getFirst().entries()).hasSize(1);
         assertThat(response.messages().getFirst().pharmacistRankings().get(1).entries()).isEmpty();
     }
