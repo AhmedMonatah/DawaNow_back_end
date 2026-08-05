@@ -4,6 +4,8 @@ import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import java.util.List;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.servers.Server;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,6 +19,11 @@ public class OpenApiConfig {
             + "When lang=ar, textual fields are sorted using their Arabic translations. "
             + "Repeat the sort parameter for multiple fields, for example: "
             + "sort=price,desc&sort=name,asc.";
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI().addServersItem(new Server().url("/"));
+    }
 
     @Bean
     public OpenApiCustomizer bearerTokenSecurityScheme() {

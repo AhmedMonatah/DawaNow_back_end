@@ -29,11 +29,26 @@ public class FirebaseConfig {
     @Value("${firebase.credentials.path:classpath:firebase-service-account.json}")
     private Resource credentialsResource;
 
+    @Value("${FIREBASE_CREDENTIALS_JSON:#{null}}")
+    private String firebaseCredentialsJson;
+
     @PostConstruct
     public void initializeFirebase() {
         try {
             if (FirebaseApp.getApps().isEmpty()) {
-                try (InputStream serviceAccount = credentialsResource.getInputStream()) {
+                InputStream serviceAccount;
+
+                if (org.springframework.util.StringUtils.hasText(firebaseCredentialsJson)) {
+                    log.info("Initializing Firebase using FIREBASE_CREDENTIALS_JSON environment variable.");
+                    serviceAccount = new java.io.ByteArrayInputStream(firebaseCredentialsJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                } else if (credentialsResource.exists()) {
+                    log.info("Initializing Firebase using credentials file.");
+                    serviceAccount = credentialsResource.getInputStream();
+                } else {
+                    throw new IllegalStateException("Firebase credentials not found! Please set the FIREBASE_CREDENTIALS_JSON environment variable (e.g. in Railway) with the contents of your firebase-service-account.json file.");
+                }
+
+                try (serviceAccount) {
                     FirebaseOptions options = FirebaseOptions.builder()
                             .setCredentials(GoogleCredentials.fromStream(serviceAccount))
                             .build();

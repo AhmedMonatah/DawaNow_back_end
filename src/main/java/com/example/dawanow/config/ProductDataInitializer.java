@@ -21,6 +21,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -88,16 +89,31 @@ public class ProductDataInitializer implements ApplicationRunner {
             log.info("Imported {} products and {} categories", importedProducts.size(), categories.size());
         } else {
             products = indexProducts(productRepository.findAll());
+            List<Product> missingProducts = new ArrayList<>();
+            Map<String, Category> categories = null;
+
             for (ProductSeed seed : seeds) {
                 ProductKey key = productKey(seed.name(), seed.price());
                 Product product = products.get(key);
                 if (product == null) {
-                    throw new IllegalStateException(
-                            "Existing product table does not contain dataset product: " + seed.name()
+                    if (categories == null) {
+                        categories = loadCategories(seeds);
+                    }
+                    Product newProduct = toProduct(
+                            seed,
+                            categories.get(categoryKey(seed.consumerCategory()))
                     );
+                    missingProducts.add(newProduct);
                 }
             }
-            log.info("Product import skipped because the product table is not empty");
+
+            if (!missingProducts.isEmpty()) {
+                productRepository.saveAll(missingProducts);
+                products = indexProducts(productRepository.findAll());
+                log.info("Imported {} missing products", missingProducts.size());
+            } else {
+                log.info("Product import skipped because all dataset products are already in the database");
+            }
         }
 
         synchronizeArabicTranslations(seeds, translationSeeds, products);
@@ -217,8 +233,10 @@ public class ProductDataInitializer implements ApplicationRunner {
             throw invalidField("route", lineNumber);
         }
         String description = required(values[10], "description", 2000, lineNumber);
-        String imageUrl = required(values[11], "imageUrl", 1000, lineNumber);
-        validateImageUrl(imageUrl, lineNumber);
+        String imageUrl = optional(values[11], "imageUrl", 1000, lineNumber);
+        if (imageUrl != null) {
+            validateImageUrl(imageUrl, lineNumber);
+        }
         String name = buildDisplayName(productName, strength, packSize, form, lineNumber);
 
         return new ProductSeed(
@@ -247,8 +265,10 @@ public class ProductDataInitializer implements ApplicationRunner {
         }
 
         BigDecimal price = parsePrice(values[0], lineNumber);
-        String imageUrl = required(values[12], "translated imageUrl", 1000, lineNumber);
-        validateImageUrl(imageUrl, lineNumber);
+        String imageUrl = optional(values[12], "translated imageUrl", 1000, lineNumber);
+        if (imageUrl != null) {
+            validateImageUrl(imageUrl, lineNumber);
+        }
         return new ProductTranslationSeed(
                 price,
                 required(values[1], "translated name", 500, lineNumber),
@@ -272,7 +292,7 @@ public class ProductDataInitializer implements ApplicationRunner {
             int lineNumber
     ) {
         if (productSeed.price().compareTo(translationSeed.price()) != 0
-                || !productSeed.imageUrl().equals(translationSeed.imageUrl())) {
+                || !Objects.equals(productSeed.imageUrl(), translationSeed.imageUrl())) {
             throw new IllegalStateException(
                     "Arabic product translation does not match the product dataset at line " + lineNumber
             );
