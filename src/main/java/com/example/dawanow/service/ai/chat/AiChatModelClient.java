@@ -2,6 +2,7 @@ package com.example.dawanow.service.ai.chat;
 
 import com.example.dawanow.config.AiChatProperties;
 import com.example.dawanow.config.AiProperties;
+import com.example.dawanow.entity.ChatPerformanceDirection;
 import com.example.dawanow.entity.ChatPerformanceMetric;
 import com.example.dawanow.entity.ChatIntent;
 import com.example.dawanow.entity.DashboardPeriod;
@@ -182,7 +183,8 @@ public class AiChatModelClient {
                     lenientReminderSpec(content),
                     List.of(),
                     parsePerformanceMetric(lenientStringField(content, "performanceMetric")),
-                    parseDashboardPeriod(lenientStringField(content, "performancePeriod"))
+                    parseDashboardPeriod(lenientStringField(content, "performancePeriod")),
+                    parsePerformanceDirection(lenientStringField(content, "performanceDirection"))
             );
         }
         return new RouterResult(
@@ -195,7 +197,8 @@ public class AiChatModelClient {
                 reminderSpec(payload),
                 textList(payload, "categoryNames"),
                 parsePerformanceMetric(text(payload, "performanceMetric")),
-                parseDashboardPeriod(text(payload, "performancePeriod"))
+                parseDashboardPeriod(text(payload, "performancePeriod")),
+                parsePerformanceDirection(text(payload, "performanceDirection"))
         );
     }
 
@@ -365,6 +368,10 @@ public class AiChatModelClient {
         return parseEnum(value, DashboardPeriod.class);
     }
 
+    private ChatPerformanceDirection parsePerformanceDirection(String value) {
+        return parseEnum(value, ChatPerformanceDirection.class);
+    }
+
     private <T extends Enum<T>> T parseEnum(String value, Class<T> enumType) {
         if (value == null || value.isBlank()) {
             return null;
@@ -525,8 +532,25 @@ public class AiChatModelClient {
             ReminderSpec reminder,
             List<String> categoryNames,
             ChatPerformanceMetric performanceMetric,
-            DashboardPeriod performancePeriod
+            DashboardPeriod performancePeriod,
+            ChatPerformanceDirection performanceDirection
     ) {
+
+        public RouterResult(
+                ChatIntent intent,
+                String reply,
+                String searchQuery,
+                List<String> doctorSpecializations,
+                List<String> emergencyServices,
+                Integer quantity,
+                ReminderSpec reminder,
+                List<String> categoryNames,
+                ChatPerformanceMetric performanceMetric,
+                DashboardPeriod performancePeriod
+        ) {
+            this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
+                    quantity, reminder, categoryNames, performanceMetric, performancePeriod, null);
+        }
 
         /** Convenience for the common intents that carry no cart, reminder or category data. */
         public RouterResult(
@@ -537,7 +561,7 @@ public class AiChatModelClient {
                 List<String> emergencyServices
         ) {
             this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
-                    null, null, List.of(), null, null);
+                    null, null, List.of(), null, null, null);
         }
 
         /** Convenience for cart/reminder intents without category data. */
@@ -551,7 +575,7 @@ public class AiChatModelClient {
                 ReminderSpec reminder
         ) {
             this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
-                    quantity, reminder, List.of(), null, null);
+                    quantity, reminder, List.of(), null, null, null);
         }
 
         /** Convenience for category intents without pharmacist-performance data. */
