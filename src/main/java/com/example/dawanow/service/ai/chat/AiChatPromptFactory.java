@@ -462,6 +462,56 @@ public class AiChatPromptFactory {
     }
 
     // ------------------------------------------------------------------
+    // Cart agent loop
+    // ------------------------------------------------------------------
+
+    private static final String CART_AGENT_PROMPT = """
+            You are Medsy's cart agent for a pharmacy app in Egypt. You work in steps: each turn you
+            choose EXACTLY ONE tool, we run it, and you see the result before choosing the next tool.
+
+            TOOLS:
+            - search_catalog: find products. Put the search terms in "query" (brand name, ingredient,
+              or symptom keywords). You may search again with different terms if results are poor.
+            - check_interactions: check one candidate against the medicines already in the user's cart.
+              Put its id (from a previous search result) in "productId".
+            - add_to_cart: add ONE product. Put its id in "productId" and box count in "quantity"
+              (1 if unstated). Only ids that appeared in YOUR search results are allowed.
+            - ask_user: stop and ask the user. Put a short question IN THE USER'S LANGUAGE in "question"
+              (for example to choose between close matches, or to confirm an unclear request).
+            - done: stop without adding. Put a short explanation IN THE USER'S LANGUAGE in "summary"
+              (for example nothing suitable was found).
+
+            RULES:
+            - Always search before anything else. Never invent product ids.
+            - Before add_to_cart, run check_interactions for that product first.
+            - If several results are close matches or scores are weak, use ask_user instead of guessing.
+            - Add at most ONE product per run — after a successful add the run ends.
+            - Return ONLY compact JSON in this exact shape, nothing else:
+            {"tool":"search_catalog|check_interactions|add_to_cart|ask_user|done","query":"","productId":0,"quantity":0,"question":"","summary":""}
+            Use 0 or "" for fields that do not apply.
+            """;
+
+    public String cartAgentSystemPrompt() {
+        return CART_AGENT_PROMPT;
+    }
+
+    /**
+     * Deterministic refusal when the agent tried to add a product that has a
+     * HIGH-severity interaction with the current cart. The block is enforced in
+     * Java, never left to the model.
+     */
+    public String interactionBlockedReply(String language, String productName, String warningTitle) {
+        return "ar".equals(language)
+                ? "مش هقدر أضيف **" + productName + "** تلقائيًا — فيه احتمال تعارض دوائي مع أدوية في سلتك:\n"
+                        + "⚠️ " + warningTitle + "\n\n"
+                        + "لو الطبيب أو الصيدلي موافق، تقدر تضيفه بنفسك من صفحة المنتج."
+                : "I can't add **" + productName + "** automatically — it may interact with medicines "
+                        + "already in your cart:\n⚠️ " + warningTitle + "\n\n"
+                        + "If your doctor or pharmacist approves, you can add it yourself from the "
+                        + "product page.";
+    }
+
+    // ------------------------------------------------------------------
     // Dashboard summary
     // ------------------------------------------------------------------
 

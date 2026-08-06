@@ -75,6 +75,43 @@ public class AiChatModelClient {
         return complete("Text generation", systemPrompt, messages, maxTokens);
     }
 
+    /** One decision step of the cart agent loop: which tool to call next. */
+    public AgentStep agentStep(String systemPrompt, List<GatewayMessage> messages, int maxTokens) {
+        String content = complete("Cart agent step", systemPrompt, messages, maxTokens);
+        return parseAgentStep(content);
+    }
+
+    private AgentStep parseAgentStep(String content) {
+        JsonNode payload = tryParseJson(content);
+        if (payload == null || !payload.isObject()) {
+            return new AgentStep(
+                    lenientStringField(content, "tool"),
+                    lenientStringField(content, "query"),
+                    null,
+                    null,
+                    lenientStringField(content, "question"),
+                    lenientStringField(content, "summary")
+            );
+        }
+        return new AgentStep(
+                text(payload, "tool"),
+                text(payload, "query"),
+                positiveLong(payload, "productId"),
+                positiveInt(payload, "quantity"),
+                text(payload, "question"),
+                text(payload, "summary")
+        );
+    }
+
+    private Long positiveLong(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || !value.isNumber()) {
+            return null;
+        }
+        long number = value.longValue();
+        return number > 0 ? number : null;
+    }
+
     private String complete(String capability, String systemPrompt, List<GatewayMessage> messages, int maxTokens) {
         requireStudentGatewayConfigured();
 
@@ -604,5 +641,19 @@ public class AiChatModelClient {
     }
 
     public record GroundedResult(String reply, List<Long> productIds) {
+    }
+
+    /**
+     * One tool call chosen by the cart agent. Exactly one tool per step; the
+     * other fields are only meaningful for the tool that uses them.
+     */
+    public record AgentStep(
+            String tool,
+            String query,
+            Long productId,
+            Integer quantity,
+            String question,
+            String summary
+    ) {
     }
 }

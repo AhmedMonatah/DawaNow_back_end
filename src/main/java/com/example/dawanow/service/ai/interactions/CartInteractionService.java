@@ -6,6 +6,7 @@ import com.example.dawanow.dtos.response.InvolvedProductResponse;
 import com.example.dawanow.entity.Cart;
 import com.example.dawanow.entity.CartItem;
 import com.example.dawanow.entity.Product;
+import com.example.dawanow.repo.ProductRepository;
 import com.example.dawanow.service.CartService;
 import com.example.dawanow.service.ai.interactions.DrugInteractionEvaluator.InteractionWarning;
 import com.example.dawanow.service.ai.interactions.DrugInteractionEvaluator.ProductIngredients;
@@ -34,6 +35,7 @@ public class CartInteractionService {
     private final CartService cartService;
     private final IngredientNormalizer normalizer;
     private final DrugInteractionEvaluator evaluator;
+    private final ProductRepository productRepository;
 
     @Transactional(readOnly = true)
     public CartInteractionResponse getWarningsForCurrentCart(String language) {
@@ -52,7 +54,44 @@ public class CartInteractionService {
                 .toList();
     }
 
+    /**
+     * Warnings the given candidate WOULD create against the current cart,
+     * evaluated without mutating anything — the cart agent's pre-add gate.
+     */
+    @Transactional(readOnly = true)
+    public List<InteractionWarningResponse> previewWarningsForCandidate(
+            Long candidateProductId,
+            String language
+    ) {
+        Product candidate = productRepository.findById(candidateProductId).orElse(null);
+        if (candidate == null || isNonSystemic(candidate.getRoute())) {
+            return List.of();
+        }
+        List<String> candidateIngredients = normalizer.extractIngredients(candidate.getScientificName());
+        if (candidateIngredients.isEmpty()) {
+            return List.of();
+        }
+
+        List<ProductIngredients> products = collectCartProducts().stream()
+                .filter(product -> !product.productId().equals(candidateProductId))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        products.add(new ProductIngredients(
+                candidate.getId(), candidate.getName(), candidateIngredients));
+
+        return evaluator.evaluate(products).stream()
+                .filter(warning -> warning.products().stream()
+                        .anyMatch(product -> product.productId().equals(candidateProductId)))
+                .map(warning -> toResponse(warning, language))
+                .toList();
+    }
+
     private List<InteractionWarningResponse> evaluateCurrentCart(String language) {
+        return evaluator.evaluate(collectCartProducts()).stream()
+                .map(warning -> toResponse(warning, language))
+                .toList();
+    }
+
+    private List<ProductIngredients> collectCartProducts() {
         Cart cart = cartService.getCartEntity();
         List<ProductIngredients> products = new ArrayList<>();
         for (CartItem item : cart.getItems()) {
@@ -65,10 +104,7 @@ public class CartInteractionService {
                 products.add(new ProductIngredients(product.getId(), product.getName(), ingredients));
             }
         }
-
-        return evaluator.evaluate(products).stream()
-                .map(warning -> toResponse(warning, language))
-                .toList();
+        return products;
     }
 
     private boolean isNonSystemic(String route) {
