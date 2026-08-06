@@ -122,6 +122,7 @@ public class AiChatService {
     private final MedicineImageValidator imageValidator;
     private final PrescriptionProductMatchingService matchingService;
     private final ChatCartActionService cartActionService;
+    private final CartAgentService cartAgentService;
     private final MedicationReminderService reminderService;
     private final CategoryRepository categoryRepository;
     private final CategoryTranslationRepository categoryTranslationRepository;
@@ -173,7 +174,8 @@ public class AiChatService {
             return respondWithCategories(conversation, language, router);
         }
         if (CART_INTENTS.contains(intent)) {
-            return respondWithCartAction(conversation, user, language, intent, router);
+            return respondWithCartAction(conversation, user, language, intent, router,
+                    request.message());
         }
         if (REMINDER_INTENTS.contains(intent)) {
             return respondWithReminder(conversation, user, language, intent, router.reminder());
@@ -431,7 +433,8 @@ public class AiChatService {
             User user,
             String language,
             ChatIntent intent,
-            RouterResult router
+            RouterResult router,
+            String rawMessage
     ) {
         if (user.getRole() == UserRole.PHARMACIST) {
             String reply = promptFactory.actionNotAvailableForPharmacistReply(language);
@@ -447,6 +450,37 @@ public class AiChatService {
                     List.of(), List.of(), List.of(), List.of());
             return response(conversation, saved, reply, List.of(), List.of(), List.of(), List.of(),
                     null, ChatActionResponse.createRequest());
+        }
+
+        // The agent loop decides its own steps (search -> inspect -> check
+        // interactions -> add/ask/stop). Any abort falls through to the
+        // original deterministic single-shot path below.
+        CartAgentService.AgentOutcome agent = cartAgentService.run(
+                rawMessage, router.quantity(), language);
+        switch (agent.status()) {
+            case ADDED -> {
+                ProductResponse product = agent.product();
+                String reply = promptFactory.addedToCartReply(language, product.name(), agent.quantity())
+                        + warningSuffix(agent.warnings(), language);
+                ChatMessage saved = saveAssistantMessage(conversation, reply, intent,
+                        List.of(product), List.of(), List.of(), List.of());
+                return response(conversation, saved, reply, List.of(product), List.of(), List.of(),
+                        List.of(), null,
+                        ChatActionResponse.addedToCart(
+                                List.of(product.id()), agent.quantity(), agent.cartItemCount()));
+            }
+            case ASK_USER, DONE -> {
+                String reply = StringUtils.hasText(agent.reply())
+                        ? agent.reply()
+                        : promptFactory.fallbackReply(language);
+                ChatMessage saved = saveAssistantMessage(conversation, reply, intent,
+                        agent.candidates(), List.of(), List.of(), List.of());
+                return response(conversation, saved, reply, agent.candidates(), List.of(), List.of(),
+                        List.of(), null, null);
+            }
+            case FALLBACK -> {
+                // continue below
+            }
         }
 
         CartActionOutcome outcome = cartActionService.addToCart(
