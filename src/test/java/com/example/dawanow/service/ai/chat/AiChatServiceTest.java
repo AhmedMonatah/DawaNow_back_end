@@ -89,6 +89,8 @@ class AiChatServiceTest {
     @Mock
     private ChatCartActionService cartActionService;
     @Mock
+    private CartAgentService cartAgentService;
+    @Mock
     private MedicationReminderService reminderService;
     @Mock
     private CategoryRepository categoryRepository;
@@ -125,6 +127,7 @@ class AiChatServiceTest {
                 imageValidator,
                 matchingService,
                 cartActionService,
+                cartAgentService,
                 reminderService,
                 categoryRepository,
                 categoryTranslationRepository,
@@ -670,6 +673,7 @@ class AiChatServiceTest {
         when(modelClient.route(anyString(), any(), anyInt()))
                 .thenReturn(new RouterResult(ChatIntent.ADD_TO_CART, "", "panadol",
                         List.of(), List.of(), 2, null));
+        stubAgentFallback();
         when(cartActionService.addToCart("panadol", 2, "en"))
                 .thenReturn(new ChatCartActionService.CartActionOutcome(
                         ChatCartActionService.Status.ADDED, panadol, List.of(), 2, 3L, List.of()));
@@ -694,6 +698,7 @@ class AiChatServiceTest {
         when(modelClient.route(anyString(), any(), anyInt()))
                 .thenReturn(new RouterResult(ChatIntent.ADD_TO_CART, "", "brufen",
                         List.of(), List.of(), null, null));
+        stubAgentFallback();
         when(cartActionService.addToCart("brufen", null, "en"))
                 .thenReturn(new ChatCartActionService.CartActionOutcome(
                         ChatCartActionService.Status.ADDED, ibuprofen, List.of(), 1, 2L, List.of(warning)));
@@ -713,6 +718,7 @@ class AiChatServiceTest {
         when(modelClient.route(anyString(), any(), anyInt()))
                 .thenReturn(new RouterResult(ChatIntent.ADD_TO_CART, "", "panadol",
                         List.of(), List.of(), null, null));
+        stubAgentFallback();
         when(cartActionService.addToCart("panadol", null, "en"))
                 .thenReturn(new ChatCartActionService.CartActionOutcome(
                         ChatCartActionService.Status.AMBIGUOUS, null, candidates, 1, 0, List.of()));
@@ -871,6 +877,53 @@ class AiChatServiceTest {
         verify(messageRepository).delete(deleted.capture());
         assertThat(deleted.getValue().getContent()).isEqualTo("hello");
         assertThat(deleted.getValue().getRole()).isEqualTo(ChatMessageRole.USER);
+    }
+
+    @Test
+    void agentAddedOutcomeSkipsTheDeterministicPath() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        ProductResponse panadol = product(7L, "PANADOL ADVANCE", "PARACETAMOL");
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(ChatIntent.ADD_TO_CART, "", "panadol",
+                        List.of(), List.of(), 2, null));
+        when(cartAgentService.run("add 2 panadol", 2, "en"))
+                .thenReturn(new CartAgentService.AgentOutcome(
+                        CartAgentService.Status.ADDED, panadol, 2, 3L, List.of(), null,
+                        List.of(), 3));
+
+        ChatMessageResponse response = service.sendMessage(new ChatMessageRequest("add 2 panadol"));
+
+        assertThat(response.action().type()).isEqualTo("ADDED_TO_CART");
+        assertThat(response.action().addedProductIds()).containsExactly(7L);
+        verifyNoInteractions(cartActionService);
+    }
+
+    @Test
+    void agentAskUserOutcomeReturnsItsQuestionAndCandidates() {
+        stubCurrentUser(customer);
+        stubConversation();
+        stubMessageSaves();
+        when(modelClient.route(anyString(), any(), anyInt()))
+                .thenReturn(new RouterResult(ChatIntent.ADD_TO_CART, "", "panadol",
+                        List.of(), List.of(), null, null));
+        when(cartAgentService.run("add panadol", null, "en"))
+                .thenReturn(new CartAgentService.AgentOutcome(
+                        CartAgentService.Status.ASK_USER, null, 0, 0, List.of(),
+                        "Which one do you mean?", List.of(product(1L), product(2L)), 2));
+
+        ChatMessageResponse response = service.sendMessage(new ChatMessageRequest("add panadol"));
+
+        assertThat(response.answer()).isEqualTo("Which one do you mean?");
+        assertThat(response.products()).hasSize(2);
+        assertThat(response.action()).isNull();
+        verifyNoInteractions(cartActionService);
+    }
+
+    private void stubAgentFallback() {
+        when(cartAgentService.run(anyString(), any(), anyString()))
+                .thenReturn(CartAgentService.AgentOutcome.fallback());
     }
 
     private void stubCurrentUser(User user) {
