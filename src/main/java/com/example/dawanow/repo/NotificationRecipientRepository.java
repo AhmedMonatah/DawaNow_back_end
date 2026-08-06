@@ -22,11 +22,11 @@ public interface NotificationRecipientRepository extends JpaRepository<Notificat
 
     List<NotificationRecipient> findByNotificationIdAndStatus(Long notificationId, NotificationRecipient.Status status);
 
-    @Modifying
-    @Query("""
-        UPDATE NotificationRecipient r SET r.status = 'READ', r.readAt = CURRENT_TIMESTAMP
-        WHERE r.pharmacistId = :pharmacistId AND r.status != 'READ'
-    """)
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+        UPDATE notification_recipient SET status = 'READ', read_at = NOW()
+        WHERE pharmacist_id = :pharmacistId AND status != 'READ'
+        """, nativeQuery = true)
     void markAllReadForPharmacist(@Param("pharmacistId") Long pharmacistId);
 
 }

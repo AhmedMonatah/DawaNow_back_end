@@ -16,6 +16,7 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/v1/cart")
@@ -43,8 +44,10 @@ public class CartController {
                     description = "Authentication is required"
             )
     })
-    public ResponseEntity<ApiResponse<CartResponse>> getCart() {
-        CartResponse cartResponse = cartService.getCart();
+    public ResponseEntity<ApiResponse<CartResponse>> getCart(
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang) {
+        CartResponse cartResponse = cartService.getCart(lang);
         return ResponseEntity.ok(ApiResponse.success("Cart fetched", cartResponse));
     }
 
@@ -78,8 +81,10 @@ public class CartController {
                     description = "Product and quantity to add",
                     required = true
             )
-            @Valid @RequestBody AddCartItemRequest request) {
-        CartResponse cartResponse =  cartService.addItem(request);
+            @Valid @RequestBody AddCartItemRequest request,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang) {
+        CartResponse cartResponse =  cartService.addItem(request, lang);
         return ResponseEntity.ok(ApiResponse.success("Product added to cart", cartResponse));
     }
 
@@ -109,9 +114,11 @@ public class CartController {
             )
     })
     public ResponseEntity<ApiResponse<CartResponse>> addItems(
-            @Valid @RequestBody BulkAddCartItemsRequest request
+            @Valid @RequestBody BulkAddCartItemsRequest request,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang
     ) {
-        CartResponse cartResponse = cartService.addItems(request);
+        CartResponse cartResponse = cartService.addItems(request, lang);
         return ResponseEntity.ok(ApiResponse.success("Products added to cart", cartResponse));
     }
 
@@ -152,9 +159,11 @@ public class CartController {
                     example = "3",
                     required = true
             )
-            @RequestBody    @Min(value = 1, message = "Quantity must be at least 1") long newQuantity) {
+            @RequestBody    @Min(value = 1, message = "Quantity must be at least 1") long newQuantity,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang) {
 
-           CartResponse cartResponse = cartService.setQuantity(cartItemId, newQuantity);
+           CartResponse cartResponse = cartService.setQuantity(cartItemId, newQuantity, lang);
            return ResponseEntity.ok(ApiResponse.success("CartItem quantity updated", cartResponse));
     }
 
@@ -185,8 +194,10 @@ public class CartController {
                     example = "5",
                     required = true
             )
-            @PathVariable Long cartItemId) {
-       CartResponse cartResponse = cartService.removeItem(cartItemId);
+            @PathVariable Long cartItemId,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang) {
+       CartResponse cartResponse = cartService.removeItem(cartItemId, lang);
        return ResponseEntity.ok(ApiResponse.success("Cart Item  removed from cart", cartResponse));
     }
 

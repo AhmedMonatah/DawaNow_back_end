@@ -74,10 +74,8 @@ public class Product {
     @Digits(integer = 10, fraction = 2)
     private BigDecimal price;
 
-    @Column(name = "image_url", nullable = false, length = 1000)
-    @NotBlank
+    @Column(name = "image_url", length = 1000)
     @Size(max = 1000)
-    @Pattern(regexp = "https://\\S+")
     private String imageUrl;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

@@ -10,15 +10,12 @@ import java.math.BigDecimal;
 @Mapper(componentModel = "spring")
 public interface MedicineRequestResultMapper {
     MedicineRequestResultResponse toResponse(MedicineRequest medicineRequest);
-    public static MedicineRequestResultItemResponse unavailable(String requestedProductName, Long requestItemId) {
-        return new MedicineRequestResultItemResponse(
-                requestItemId,
-                null,
-                requestedProductName,
-                null,
-                BigDecimal.ZERO,
-                false,  // alternative
-                false   // available
-        );
+    static MedicineRequestResultItemResponse unavailable(Long requestItemId) {
+        MedicineRequestResultItemResponse response = new MedicineRequestResultItemResponse();
+        response.setRequestItemId(requestItemId);
+        response.setUnitPrice(BigDecimal.ZERO);
+        response.setAlternative(false);
+        response.setAvailable(false);
+        return response;
     }
 }

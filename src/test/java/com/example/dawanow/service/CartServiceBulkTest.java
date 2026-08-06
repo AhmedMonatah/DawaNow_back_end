@@ -68,13 +68,14 @@ class CartServiceBulkTest {
         when(productRepository.findAllById(any())).thenReturn(List.of(product));
         when(currentUserProvider.get()).thenReturn(user);
         when(cartRepository.findByUserId(7L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCartIdIn(List.of(5L))).thenReturn(List.of());
         CartResponse mapped = new CartResponse(5L, List.of(), new BigDecimal("70.00"));
-        when(cartMapper.toResponse(cart)).thenReturn(mapped);
+        when(cartMapper.toResponse(cart, List.of())).thenReturn(mapped);
 
         CartResponse result = service.addItems(new BulkAddCartItemsRequest(List.of(
                 new AddCartItemRequest(11L, 1L),
                 new AddCartItemRequest(11L, 2L)
-        )));
+        )), "en");
 
         assertThat(result).isEqualTo(mapped);
         assertThat(existing.getQuantity()).isEqualTo(7L);
@@ -93,11 +94,12 @@ class CartServiceBulkTest {
         when(productRepository.findAllById(any())).thenReturn(List.of(first, second));
         when(currentUserProvider.get()).thenReturn(user);
         when(cartRepository.findByUserId(7L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCartIdIn(any())).thenReturn(List.of());
 
         service.addItems(new BulkAddCartItemsRequest(List.of(
                 new AddCartItemRequest(11L, 2L),
                 new AddCartItemRequest(12L, 3L)
-        )));
+        )), "en");
 
         assertThat(cart.getItems()).hasSize(2);
         assertThat(cart.getTotalPrice()).isEqualByComparingTo("35.00");
@@ -110,7 +112,7 @@ class CartServiceBulkTest {
 
         assertThatThrownBy(() -> service.addItems(new BulkAddCartItemsRequest(List.of(
                 new AddCartItemRequest(99L, 1L)
-        ))))
+        )), "en"))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Product not found: 99");
 

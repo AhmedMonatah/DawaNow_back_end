@@ -14,8 +14,10 @@ import java.util.List;
 
 public interface MedicineRequestRepository extends JpaRepository<MedicineRequest, Long> {
 
+    @EntityGraph(attributePaths = {"customer"})
     Page<MedicineRequest> findByCustomerId(Long customerId, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"customer"})
     Page<MedicineRequest> findDistinctByOffers_Pharmacy_Id(Long pharmacyId, Pageable pageable);
 
     boolean existsByIdAndOffers_Pharmacy_Id(Long requestId, Long pharmacyId);

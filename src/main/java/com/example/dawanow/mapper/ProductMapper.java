@@ -1,6 +1,7 @@
 package com.example.dawanow.mapper;
 
 import com.example.dawanow.dtos.response.ProductResponse;
+import com.example.dawanow.dtos.response.ProductSummaryResponse;
 import com.example.dawanow.entity.Product;
 import com.example.dawanow.entity.ProductTranslation;
 import org.mapstruct.Mapper;
@@ -18,4 +19,6 @@ public interface ProductMapper {
     @Mapping(target = "imageUrl", source = "product.imageUrl")
     @Mapping(target = "categoryId", source = "product.category.id")
     ProductResponse toResponse(ProductTranslation translation);
+
+    ProductSummaryResponse toSummary(Product product);
 }
