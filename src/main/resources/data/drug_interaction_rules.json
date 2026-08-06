@@ -1,0 +1,233 @@
+[
+  {
+    "type": "CLASS_PAIR", "a": "ANTICOAGULANT", "b": "NSAID", "severity": "HIGH",
+    "titleEn": "Blood thinner + anti-inflammatory painkiller (bleeding risk)",
+    "titleAr": "مسيل للدم + مسكن مضاد للالتهاب (خطر نزيف)",
+    "adviceEn": "Taking an NSAID painkiller with a blood thinner significantly raises the risk of stomach and internal bleeding. Ask your doctor before combining them — paracetamol is usually a safer pain option.",
+    "adviceAr": "تناول مسكن مضاد للالتهاب مع مسيل للدم يرفع خطر نزيف المعدة والنزيف الداخلي بشكل كبير. استشر طبيبك قبل الجمع بينهما — الباراسيتامول عادة خيار أأمن للألم."
+  },
+  {
+    "type": "CLASS_PAIR", "a": "ANTICOAGULANT", "b": "ANTIPLATELET", "severity": "HIGH",
+    "titleEn": "Blood thinner + antiplatelet (bleeding risk)",
+    "titleAr": "مسيل للدم + مضاد للصفائح (خطر نزيف)",
+    "adviceEn": "Combining a blood thinner with aspirin or another antiplatelet greatly increases bleeding risk. This combination should only ever be used under direct medical supervision.",
+    "adviceAr": "الجمع بين مسيل للدم والأسبرين أو مضاد صفائح آخر يزيد خطر النزيف بشدة. هذا الجمع لا يُستخدم إلا تحت إشراف طبي مباشر."
+  },
+  {
+    "type": "DUPLICATE_CLASS", "a": "ANTICOAGULANT", "b": null, "severity": "HIGH",
+    "titleEn": "Two blood thinners together",
+    "titleAr": "مسيلان للدم معًا",
+    "adviceEn": "Your cart contains more than one anticoagulant. Taking two blood thinners together can cause dangerous bleeding — check with your doctor which one you should be on.",
+    "adviceAr": "سلتك تحتوي على أكثر من مسيل للدم. تناول مسيلين معًا قد يسبب نزيفًا خطيرًا — راجع طبيبك لتحديد الدواء الصحيح لك."
+  },
+  {
+    "type": "DUPLICATE_CLASS", "a": "NSAID", "b": null, "severity": "MODERATE",
+    "titleEn": "Two anti-inflammatory painkillers (NSAIDs)",
+    "titleAr": "مسكنان مضادان للالتهاب معًا",
+    "adviceEn": "Taking two NSAIDs together does not relieve pain better but multiplies the risk of stomach ulcers and kidney problems. Use only one at a time.",
+    "adviceAr": "تناول مسكنين مضادين للالتهاب معًا لا يزيد تسكين الألم لكنه يضاعف خطر قرحة المعدة ومشاكل الكلى. استخدم واحدًا فقط في المرة."
+  },
+  {
+    "type": "DUPLICATE_INGREDIENT", "a": "PARACETAMOL", "b": null, "severity": "HIGH",
+    "titleEn": "Paracetamol in more than one product (overdose risk)",
+    "titleAr": "باراسيتامول في أكثر من منتج (خطر جرعة زائدة)",
+    "adviceEn": "More than one product in your cart contains paracetamol (including cold & flu combinations). Taking them together can exceed the safe daily dose and damage the liver. Keep only one paracetamol product.",
+    "adviceAr": "أكثر من منتج في سلتك يحتوي على باراسيتامول (بما في ذلك أدوية البرد المركّبة). تناولها معًا قد يتجاوز الجرعة اليومية الآمنة ويضر الكبد. احتفظ بمنتج واحد فقط يحتوي على باراسيتامول."
+  },
+  {
+    "type": "CLASS_PAIR", "a": "NSAID", "b": "SSRI_SNRI", "severity": "MODERATE",
+    "titleEn": "NSAID painkiller + antidepressant (stomach bleeding risk)",
+    "titleAr": "مسكن مضاد للالتهاب + مضاد اكتئاب (خطر نزيف معدي)",
+    "adviceEn": "SSRIs/SNRIs combined with NSAID painkillers raise the risk of stomach bleeding. Ask your doctor or pharmacist — a stomach-protecting medicine or paracetamol may be advised.",
+    "adviceAr": "مضادات الاكتئاب من نوع SSRI/SNRI مع المسكنات المضادة للالتهاب ترفع خطر نزيف المعدة. استشر طبيبك أو الصيدلي — قد يُنصح بواقٍ للمعدة أو باراسيتامول بديلًا."
+  },
+  {
+    "type": "DUPLICATE_CLASS", "a": "SEROTONERGIC", "b": null, "severity": "MODERATE",
+    "titleEn": "Two serotonergic medicines (serotonin syndrome risk)",
+    "titleAr": "دواءان يرفعان السيروتونين (خطر متلازمة السيروتونين)",
+    "adviceEn": "Combining two medicines that raise serotonin (antidepressants and related drugs) can cause serotonin syndrome: agitation, sweating, fast heartbeat. Only a doctor should combine or switch these medicines.",
+    "adviceAr": "الجمع بين دوائين يرفعان السيروتونين (مضادات الاكتئاب وما شابهها) قد يسبب متلازمة السيروتونين: هياج وتعرّق وتسارع ضربات القلب. تبديل هذه الأدوية أو جمعها قرار الطبيب فقط."
+  },
+  {
+    "type": "CLASS_INGREDIENT_PAIR", "a": "SEROTONERGIC", "b": "RASAGILINE", "severity": "HIGH",
+    "titleEn": "Antidepressant + rasagiline (MAO inhibitor)",
+    "titleAr": "مضاد اكتئاب + راساجيلين (مثبط MAO)",
+    "adviceEn": "Rasagiline with serotonergic antidepressants can trigger severe serotonin syndrome. This combination is generally avoided — consult the treating neurologist before taking both.",
+    "adviceAr": "الراساجيلين مع مضادات الاكتئاب السيروتونينية قد يسبب متلازمة سيروتونين شديدة. هذا الجمع يُتجنب عادة — راجع طبيب الأعصاب المعالج قبل تناولهما معًا."
+  },
+  {
+    "type": "CLASS_INGREDIENT_PAIR", "a": "SEROTONERGIC", "b": "ERGOTAMIN", "severity": "MODERATE",
+    "titleEn": "Antidepressant + ergotamine (migraine medicine)",
+    "titleAr": "مضاد اكتئاب + إرجوتامين (دواء الصداع النصفي)",
+    "adviceEn": "Ergotamine-containing migraine medicines with serotonergic antidepressants can raise serotonin levels and blood pressure. Check with your doctor before combining them.",
+    "adviceAr": "أدوية الصداع النصفي المحتوية على الإرجوتامين مع مضادات الاكتئاب السيروتونينية قد ترفع السيروتونين وضغط الدم. استشر طبيبك قبل الجمع بينهما."
+  },
+  {
+    "type": "CLASS_PAIR", "a": "STATIN_CYP3A4", "b": "CYP3A4_INHIBITOR", "severity": "HIGH",
+    "titleEn": "Cholesterol statin + strong enzyme inhibitor (muscle damage risk)",
+    "titleAr": "دواء كوليسترول (ستاتين) + مثبط إنزيمي قوي (خطر تلف العضلات)",
+    "adviceEn": "Clarithromycin and azole antifungals block the breakdown of simvastatin/atorvastatin, which can cause serious muscle damage (rhabdomyolysis). The statin is often paused during the antibiotic/antifungal course — ask your doctor.",
+    "adviceAr": "الكلاريثروميسين ومضادات الفطريات الآزولية تمنع تكسير السيمفاستاتين/الأتورفاستاتين، مما قد يسبب تلفًا عضليًا خطيرًا. غالبًا يُوقف الستاتين مؤقتًا أثناء العلاج — استشر طبيبك."
+  },
+  {
+    "type": "CLASS_INGREDIENT_PAIR", "a": "XO_INHIBITOR", "b": "AZATHIOPRINE", "severity": "HIGH",
+    "titleEn": "Gout medicine (allopurinol/febuxostat) + azathioprine",
+    "titleAr": "دواء النقرس (ألوبيورينول/فيبوكسوستات) + آزاثيوبرين",
+    "adviceEn": "Allopurinol or febuxostat blocks the breakdown of azathioprine, which can severely suppress the bone marrow. This is a well-known dangerous combination — it needs specialist dose adjustment or must be avoided.",
+    "adviceAr": "الألوبيورينول أو الفيبوكسوستات يمنعان تكسير الآزاثيوبرين، مما قد يثبط نخاع العظم بشدة. هذا جمع خطير معروف — يحتاج تعديل جرعة من مختص أو يجب تجنبه."
+  },
+  {
+    "type": "INGREDIENT_PAIR", "a": "DIGOXINE", "b": "AMIODARONE", "severity": "HIGH",
+    "titleEn": "Digoxin + amiodarone",
+    "titleAr": "ديجوكسين + أميودارون",
+    "adviceEn": "Amiodarone raises digoxin blood levels and can cause digoxin toxicity (nausea, vision changes, dangerous heart rhythms). The digoxin dose usually needs to be reduced — contact your cardiologist.",
+    "adviceAr": "الأميودارون يرفع مستوى الديجوكسين في الدم وقد يسبب تسممًا (غثيان، تغيرات في الرؤية، اضطراب خطير في ضربات القلب). عادة يجب خفض جرعة الديجوكسين — تواصل مع طبيب القلب."
+  },
+  {
+    "type": "INGREDIENT_PAIR", "a": "DIGOXINE", "b": "VERAPAMIL", "severity": "MODERATE",
+    "titleEn": "Digoxin + verapamil",
+    "titleAr": "ديجوكسين + فيراباميل",
+    "adviceEn": "Verapamil raises digoxin levels and both slow the heart. Levels and heart rate need medical monitoring when these are combined.",
+    "adviceAr": "الفيراباميل يرفع مستوى الديجوكسين وكلاهما يبطئ القلب. يلزم متابعة طبية للمستويات ومعدل ضربات القلب عند الجمع بينهما."
+  },
+  {
+    "type": "INGREDIENT_PAIR", "a": "DIGOXINE", "b": "CLARITHROMYCIN", "severity": "MODERATE",
+    "titleEn": "Digoxin + clarithromycin",
+    "titleAr": "ديجوكسين + كلاريثروميسين",
+    "adviceEn": "Clarithromycin can raise digoxin blood levels toward toxicity. Tell the prescribing doctor you take digoxin before starting this antibiotic.",
+    "adviceAr": "الكلاريثروميسين قد يرفع مستوى الديجوكسين نحو التسمم. أخبر الطبيب أنك تتناول الديجوكسين قبل بدء هذا المضاد الحيوي."
+  },
+  {
+    "type": "CLASS_INGREDIENT_PAIR", "a": "BETA_BLOCKER", "b": "VERAPAMIL", "severity": "HIGH",
+    "titleEn": "Beta-blocker + verapamil (slow heart risk)",
+    "titleAr": "حاصر بيتا + فيراباميل (خطر بطء القلب)",
+    "adviceEn": "A beta-blocker with verapamil can slow the heart excessively and drop blood pressure (risk of heart block). This combination needs a cardiologist's explicit approval.",
+    "adviceAr": "حاصر البيتا مع الفيراباميل قد يبطئ القلب بشدة ويخفض الضغط (خطر إحصار قلبي). هذا الجمع يحتاج موافقة صريحة من طبيب القلب."
+  },
+  {
+    "type": "CLASS_PAIR", "a": "ACE_INHIBITOR", "b": "ARB", "severity": "MODERATE",
+    "titleEn": "Two blood-pressure medicines of similar type (ACE inhibitor + ARB)",
+    "titleAr": "دواءان للضغط من نفس العائلة (مثبط ACE + حاصر مستقبلات ARB)",
+    "adviceEn": "Combining an ACE inhibitor with an ARB rarely adds benefit and increases the risk of kidney problems and high potassium. Confirm with your doctor that both are really intended.",
+    "adviceAr": "الجمع بين مثبط ACE وحاصر ARB نادرًا ما يضيف فائدة ويزيد خطر مشاكل الكلى وارتفاع البوتاسيوم. تأكد من طبيبك أن الاثنين مقصودان فعلًا."
+  },
+  {
+    "type": "CLASS_PAIR", "a": "ACE_INHIBITOR", "b": "K_SPARING_DIURETIC", "severity": "MODERATE",
+    "titleEn": "ACE inhibitor + potassium-sparing diuretic (high potassium risk)",
+    "titleAr": "مثبط ACE + مدر موفر للبوتاسيوم (خطر ارتفاع البوتاسيوم)",
+    "adviceEn": "This combination can raise blood potassium to dangerous levels. It is sometimes prescribed together deliberately, but requires regular blood tests — make sure a doctor is monitoring it.",
+    "adviceAr": "هذا الجمع قد يرفع بوتاسيوم الدم لمستويات خطيرة. قد يُوصف معًا عمدًا أحيانًا لكنه يتطلب تحاليل دم منتظمة — تأكد أن طبيبًا يتابع ذلك."
+  },
+  {
+    "type": "CLASS_PAIR", "a": "ARB", "b": "K_SPARING_DIURETIC", "severity": "MODERATE",
+    "titleEn": "ARB + potassium-sparing diuretic (high potassium risk)",
+    "titleAr": "حاصر ARB + مدر موفر للبوتاسيوم (خطر ارتفاع البوتاسيوم)",
+    "adviceEn": "This combination can raise blood potassium to dangerous levels. It requires regular blood tests — make sure a doctor is monitoring it.",
+    "adviceAr": "هذا الجمع قد يرفع بوتاسيوم الدم لمستويات خطيرة ويتطلب تحاليل دم منتظمة — تأكد أن طبيبًا يتابع ذلك."
+  },
+  {
+    "type": "CLASS_PAIR", "a": "NSAID", "b": "ACE_INHIBITOR", "severity": "MODERATE",
+    "titleEn": "NSAID painkiller + blood-pressure medicine (kidney strain)",
+    "titleAr": "مسكن مضاد للالتهاب + دواء ضغط (إجهاد الكلى)",
+    "adviceEn": "NSAIDs can blunt blood-pressure medicines and strain the kidneys — especially dangerous as a \"triple whammy\" if a diuretic is also taken. Prefer paracetamol for pain, or ask your doctor.",
+    "adviceAr": "المسكنات المضادة للالتهاب قد تضعف مفعول أدوية الضغط وتجهد الكلى — والخطر أكبر مع وجود مدر للبول أيضًا. يفضّل الباراسيتامول للألم أو استشر طبيبك."
+  },
+  {
+    "type": "CLASS_PAIR", "a": "NSAID", "b": "ARB", "severity": "MODERATE",
+    "titleEn": "NSAID painkiller + blood-pressure medicine (kidney strain)",
+    "titleAr": "مسكن مضاد للالتهاب + دواء ضغط (إجهاد الكلى)",
+    "adviceEn": "NSAIDs can blunt blood-pressure medicines and strain the kidneys — especially dangerous as a \"triple whammy\" if a diuretic is also taken. Prefer paracetamol for pain, or ask your doctor.",
+    "adviceAr": "المسكنات المضادة للالتهاب قد تضعف مفعول أدوية الضغط وتجهد الكلى — والخطر أكبر مع وجود مدر للبول أيضًا. يفضّل الباراسيتامول للألم أو استشر طبيبك."
+  },
+  {
+    "type": "CLASS_PAIR", "a": "NSAID", "b": "DIURETIC", "severity": "MODERATE",
+    "titleEn": "NSAID painkiller + diuretic (kidney strain)",
+    "titleAr": "مسكن مضاد للالتهاب + مدر للبول (إجهاد الكلى)",
+    "adviceEn": "NSAIDs reduce the effect of diuretics and together they strain the kidneys, especially in older adults or with blood-pressure medicines. Ask your doctor before combining.",
+    "adviceAr": "المسكنات المضادة للالتهاب تقلل مفعول مدرات البول ومعًا يجهدان الكلى، خاصة لكبار السن أو مع أدوية الضغط. استشر طبيبك قبل الجمع."
+  },
+  {
+    "type": "INGREDIENT_PAIR", "a": "WARFARIN", "b": "METRONIDAZOLE", "severity": "HIGH",
+    "titleEn": "Warfarin + metronidazole",
+    "titleAr": "وارفارين + ميترونيدازول",
+    "adviceEn": "Metronidazole strongly boosts warfarin's effect and can cause serious bleeding. INR must be monitored closely and the warfarin dose often reduced — tell your doctor before starting it.",
+    "adviceAr": "الميترونيدازول يقوّي مفعول الوارفارين بشدة وقد يسبب نزيفًا خطيرًا. يجب متابعة تحليل السيولة INR عن قرب وغالبًا خفض الجرعة — أخبر طبيبك قبل البدء."
+  },
+  {
+    "type": "INGREDIENT_PAIR", "a": "WARFARIN", "b": "FLUCONAZOLE", "severity": "HIGH",
+    "titleEn": "Warfarin + fluconazole",
+    "titleAr": "وارفارين + فلوكونازول",
+    "adviceEn": "Fluconazole strongly boosts warfarin's effect and can cause serious bleeding. INR monitoring and dose adjustment are required — tell your doctor before starting it.",
+    "adviceAr": "الفلوكونازول يقوّي مفعول الوارفارين بشدة وقد يسبب نزيفًا خطيرًا. يلزم متابعة تحليل السيولة INR وتعديل الجرعة — أخبر طبيبك قبل البدء."
+  },
+  {
+    "type": "INGREDIENT_PAIR", "a": "WARFARIN", "b": "AZITHROMYCIN", "severity": "MODERATE",
+    "titleEn": "Warfarin + azithromycin",
+    "titleAr": "وارفارين + أزيثروميسين",
+    "adviceEn": "Azithromycin can increase warfarin's effect in some patients. Watch for unusual bruising or bleeding and check INR during the course.",
+    "adviceAr": "الأزيثروميسين قد يزيد مفعول الوارفارين لدى بعض المرضى. انتبه لأي كدمات أو نزيف غير معتاد وتابع تحليل السيولة أثناء العلاج."
+  },
+  {
+    "type": "CLASS_PAIR", "a": "PDE5_INHIBITOR", "b": "ALPHA_BLOCKER", "severity": "MODERATE",
+    "titleEn": "Erectile dysfunction medicine + prostate alpha-blocker (low blood pressure)",
+    "titleAr": "دواء ضعف الانتصاب + حاصر ألفا للبروستاتا (هبوط الضغط)",
+    "adviceEn": "Taking sildenafil/tadalafil/vardenafil with an alpha-blocker can cause a sudden blood-pressure drop and dizziness or fainting. Doses need to be separated and adjusted by a doctor.",
+    "adviceAr": "تناول السيلدينافيل/التادالافيل/الفاردينافيل مع حاصر ألفا قد يسبب هبوطًا مفاجئًا في الضغط ودوخة أو إغماء. يجب فصل الجرعات وضبطها بواسطة الطبيب."
+  },
+  {
+    "type": "DUPLICATE_CLASS", "a": "PDE5_INHIBITOR", "b": null, "severity": "HIGH",
+    "titleEn": "Two erectile dysfunction medicines together",
+    "titleAr": "دواءان لضعف الانتصاب معًا",
+    "adviceEn": "Never combine two PDE5 medicines (e.g. sildenafil and tadalafil): the effects add up and can cause dangerous blood-pressure drops. Use only one, as prescribed.",
+    "adviceAr": "لا تجمع أبدًا بين دوائين من نفس النوع (مثل سيلدينافيل وتادالافيل): يتضاعف المفعول وقد يسبب هبوطًا خطيرًا في الضغط. استخدم واحدًا فقط حسب الوصفة."
+  },
+  {
+    "type": "DUPLICATE_CLASS", "a": "QT_RISK", "b": null, "severity": "MODERATE",
+    "titleEn": "Two medicines that affect heart rhythm (QT prolongation)",
+    "titleAr": "دواءان يؤثران على كهرباء القلب (إطالة QT)",
+    "adviceEn": "Your cart contains more than one medicine known to prolong the heart's QT interval, which can rarely trigger a dangerous rhythm. Ask your doctor or pharmacist whether this combination is safe for you.",
+    "adviceAr": "سلتك تحتوي على أكثر من دواء معروف بإطالة فترة QT الكهربائية للقلب، مما قد يسبب نادرًا اضطراب نظم خطيرًا. اسأل طبيبك أو الصيدلي إن كان هذا الجمع آمنًا لك."
+  },
+  {
+    "type": "CLASS_INGREDIENT_PAIR", "a": "THEOPHYLLINE", "b": "CIPROFLOXACIN", "severity": "HIGH",
+    "titleEn": "Theophylline + ciprofloxacin",
+    "titleAr": "ثيوفيلين + سيبروفلوكساسين",
+    "adviceEn": "Ciprofloxacin blocks theophylline breakdown and can push it to toxic levels (nausea, tremor, seizures). Tell the prescribing doctor you take a theophylline product.",
+    "adviceAr": "السيبروفلوكساسين يمنع تكسير الثيوفيلين وقد يرفعه لمستويات سامة (غثيان، رعشة، تشنجات). أخبر الطبيب أنك تتناول منتجًا يحتوي على الثيوفيلين."
+  },
+  {
+    "type": "INGREDIENT_PAIR", "a": "TAMOXIFEN", "b": "PAROXETINE", "severity": "HIGH",
+    "titleEn": "Tamoxifen + paroxetine",
+    "titleAr": "تاموكسيفين + باروكسيتين",
+    "adviceEn": "Paroxetine blocks the enzyme that activates tamoxifen and can reduce its cancer-protective effect. An alternative antidepressant is usually preferred — discuss with the oncologist.",
+    "adviceAr": "الباروكسيتين يثبط الإنزيم الذي ينشّط التاموكسيفين وقد يقلل أثره الوقائي ضد السرطان. عادة يُفضل مضاد اكتئاب بديل — ناقش طبيب الأورام."
+  },
+  {
+    "type": "INGREDIENT_PAIR", "a": "TAMOXIFEN", "b": "FLUOXETINE", "severity": "HIGH",
+    "titleEn": "Tamoxifen + fluoxetine",
+    "titleAr": "تاموكسيفين + فلوكسيتين",
+    "adviceEn": "Fluoxetine blocks the enzyme that activates tamoxifen and can reduce its cancer-protective effect. An alternative antidepressant is usually preferred — discuss with the oncologist.",
+    "adviceAr": "الفلوكسيتين يثبط الإنزيم الذي ينشّط التاموكسيفين وقد يقلل أثره الوقائي ضد السرطان. عادة يُفضل مضاد اكتئاب بديل — ناقش طبيب الأورام."
+  },
+  {
+    "type": "CLASS_PAIR", "a": "BENZODIAZEPINE", "b": "SEDATIVE", "severity": "MODERATE",
+    "titleEn": "Anxiety/sleep medicine + sedating antihistamine",
+    "titleAr": "دواء قلق/نوم + مضاد هيستامين مهدئ",
+    "adviceEn": "Both medicines cause drowsiness; together they can impair breathing, concentration and driving. Avoid combining them without medical advice.",
+    "adviceAr": "كلا الدواءين يسببان النعاس؛ ومعًا قد يؤثران على التنفس والتركيز والقيادة. تجنب الجمع بينهما دون استشارة طبية."
+  },
+  {
+    "type": "DUPLICATE_INGREDIENT", "a": "PSEUDOEPHEDRINE", "b": null, "severity": "MODERATE",
+    "titleEn": "Pseudoephedrine in more than one cold product",
+    "titleAr": "سودوإيفيدرين في أكثر من منتج للبرد",
+    "adviceEn": "Two cold/flu products in your cart both contain pseudoephedrine. Doubling it can raise blood pressure and heart rate — keep only one decongestant product.",
+    "adviceAr": "منتجان لعلاج البرد في سلتك يحتويان على السودوإيفيدرين. مضاعفته قد ترفع ضغط الدم وضربات القلب — احتفظ بمنتج واحد فقط مزيل للاحتقان."
+  },
+  {
+    "type": "CLASS_INGREDIENT_PAIR", "a": "CYP3A4_INHIBITOR", "b": "CARBAMAZEPINE", "severity": "HIGH",
+    "titleEn": "Carbamazepine + clarithromycin/azole antifungal",
+    "titleAr": "كاربامازيبين + كلاريثروميسين/مضاد فطريات آزولي",
+    "adviceEn": "These medicines block carbamazepine breakdown and can push it to toxic levels (dizziness, double vision, unsteadiness). Levels must be monitored or an alternative chosen — tell your doctor.",
+    "adviceAr": "هذه الأدوية تمنع تكسير الكاربامازيبين وقد ترفعه لمستويات سامة (دوخة، ازدواج رؤية، عدم اتزان). يجب متابعة المستوى أو اختيار بديل — أخبر طبيبك."
+  }
+]
