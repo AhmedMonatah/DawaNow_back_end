@@ -82,4 +82,12 @@ public class AiChatProperties {
 
     @NotNull
     private Duration dashboardSummaryTtl = Duration.ofMinutes(10);
+
+    /**
+     * Hard ceiling on cart-agent decision steps per run. The loop aborts to the
+     * deterministic single-shot path when the model hasn't finished by then.
+     */
+    @Min(2)
+    @Max(10)
+    private int agentMaxSteps = 6;
 }
