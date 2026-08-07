@@ -61,20 +61,5 @@ services:
     volumes:
       - ./uploads:/app/uploads
 
-  # Local webhook forwarder (Option A): Stripe CLI → app service on the Docker network.
-  # Put the stable CLI signing secret in .env as STRIPE_WEBHOOK_SECRET (see scripts/fetch-stripe-webhook-secret.ps1).
-  stripe-cli:
-    image: stripe/stripe-cli:latest
-    environment:
-      # Official image reads STRIPE_API_KEY; we map from our .env name.
-      STRIPE_API_KEY: ${STRIPE_SECRET_KEY}
-    command:
-      - listen
-      - --forward-to=http://app:8080/api/v1/payments/webhook
-      - --events=payment_intent.succeeded,payment_intent.payment_failed,payment_intent.canceled
-    depends_on:
-      - app
-    restart: unless-stopped
-
 volumes:
   mysql-data:
