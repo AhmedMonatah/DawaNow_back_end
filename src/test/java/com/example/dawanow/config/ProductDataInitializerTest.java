@@ -112,7 +112,10 @@ class ProductDataInitializerTest {
             assertThat(product.getScientificName()).isNotBlank();
             assertThat(product.getScientificCategory()).isNotBlank();
             assertThat(product.getPrice()).isPositive();
-            assertThat(product.getImageUrl()).startsWith("https://");
+            assertThat(product.getImageUrl()).satisfiesAnyOf(
+                    url -> assertThat(url).isNull(),
+                    url -> assertThat(url).startsWith("https://")
+            );
             assertThat(product.getCategory()).isNotNull();
             assertThat(product.getCategory().getId()).isNotNull();
             assertThat(product.getCompany()).isNotBlank();

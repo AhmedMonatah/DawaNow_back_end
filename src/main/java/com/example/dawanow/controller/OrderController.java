@@ -2,6 +2,7 @@ package com.example.dawanow.controller;
 
 import com.example.dawanow.dtos.request.CreateOrderRequest;
 import com.example.dawanow.dtos.response.ApiResponse;
+import com.example.dawanow.dtos.response.OrderGroupResponse;
 import com.example.dawanow.dtos.response.OrderResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.service.OrderService;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -66,10 +68,12 @@ public class OrderController {
                     description = "Customer role is required"
             )
     })
-    public ResponseEntity<ApiResponse<PaginatedResponse<OrderResponse>>> getCurrentCustomerOrders(
+    public ResponseEntity<ApiResponse<PaginatedResponse<OrderGroupResponse>>> getCurrentCustomerOrders(
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Orders fetched", orderService.getCurrentCustomerOrders(pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Orders fetched", orderService.getCurrentCustomerOrders(lang, pageable)));
     }
 
     @GetMapping("/pharmacy/{pharmacyId}")
@@ -107,9 +111,11 @@ public class OrderController {
     public ResponseEntity<ApiResponse<PaginatedResponse<OrderResponse>>> getPharmacyOrders(
             @Parameter(description = "Pharmacy ID", example = "1", required = true)
             @PathVariable Long pharmacyId,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Pharmacy orders fetched", orderService.getPharmacyOrders(pharmacyId, pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Pharmacy orders fetched", orderService.getPharmacyOrders(pharmacyId, lang, pageable)));
     }
 
     @GetMapping("/all")
@@ -135,9 +141,11 @@ public class OrderController {
             )
     })
     public ResponseEntity<ApiResponse<PaginatedResponse<OrderResponse>>> getAllOrders(
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Orders fetched", orderService.getAllOrders(pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Orders fetched", orderService.getAllOrders(lang, pageable)));
     }
 
     @GetMapping("/{id}")
@@ -174,8 +182,10 @@ public class OrderController {
     })
     public ResponseEntity<ApiResponse<OrderResponse>> getOrderById(
             @Parameter(description = "Order ID", example = "1", required = true)
-            @PathVariable Long id
+            @PathVariable Long id,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Order fetched", orderService.getOrderById(id)));
+        return ResponseEntity.ok(ApiResponse.success("Order fetched", orderService.getOrderById(id, lang)));
     }
 }

@@ -13,7 +13,7 @@ import java.util.Optional;
 public interface PharmacyAssignmentRepository extends JpaRepository<PharmacyAssignment,Long> {
 
 
-    @EntityGraph(attributePaths = {"medicineRequest"})
+    @EntityGraph(attributePaths = {"medicineRequest", "medicineRequest.customer"})
     Page<PharmacyAssignment> getPharmacyAssignmentsByPharmacy_Id(Long pharmacyId, Pageable pageable);
 
     boolean existsByMedicineRequest_IdAndPharmacy_Id(Long requestId, Long pharmacyId);

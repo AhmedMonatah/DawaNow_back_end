@@ -18,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.nio.file.AccessDeniedException;
 
@@ -58,9 +59,11 @@ public class PharmacyOfferController {
     public ResponseEntity<ApiResponse<PaginatedResponse<PharmacyOfferResponse>>> getPharmacyOffers(
             @Parameter(description = "Pharmacy ID", example = "1", required = true)
             @PathVariable Long pharmacyId,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Offers fetched", pharmacyOfferService.getOffersByPharmacy(pharmacyId, pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Offers fetched", pharmacyOfferService.getOffersByPharmacy(pharmacyId, lang, pageable)));
     }
 
     @GetMapping("/{id}")
@@ -91,9 +94,11 @@ public class PharmacyOfferController {
     })
     public ResponseEntity<ApiResponse<PharmacyOfferResponse>> getOfferById(
             @Parameter(description = "Offer ID", example = "1", required = true)
-            @PathVariable Long id
+            @PathVariable Long id,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Offer fetched", pharmacyOfferService.getOfferById(id)));
+        return ResponseEntity.ok(ApiResponse.success("Offer fetched", pharmacyOfferService.getOfferById(id, lang)));
     }
 
     @PostMapping("/requests/{requestId}")
@@ -128,10 +133,12 @@ public class PharmacyOfferController {
     })
     public ResponseEntity<ApiResponse<PharmacyOfferResponse>> createPharmacyOffer(
             @PathVariable Long requestId,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang,
             @Valid @RequestBody CreateOfferRequest request
     ) throws AccessDeniedException, BadRequestException {
 
-        PharmacyOfferResponse offerResponse = pharmacyOfferService.createOffer(requestId, request);
+        PharmacyOfferResponse offerResponse = pharmacyOfferService.createOffer(requestId, request, lang);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -168,9 +175,11 @@ public class PharmacyOfferController {
     })
     public ResponseEntity<ApiResponse<PaginatedResponse<PharmacyOfferResponse>>> getRequestOffers(
             @PathVariable Long requestId,
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        PaginatedResponse<PharmacyOfferResponse> paginatedResponse = pharmacyOfferService.getRequestOffers(requestId, pageable);
+        PaginatedResponse<PharmacyOfferResponse> paginatedResponse = pharmacyOfferService.getRequestOffers(requestId, lang, pageable);
 
         return ResponseEntity.ok(ApiResponse.success(
                 "Medicine request offers fetched successfully",

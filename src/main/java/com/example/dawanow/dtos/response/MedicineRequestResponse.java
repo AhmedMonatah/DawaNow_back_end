@@ -1,5 +1,6 @@
 package com.example.dawanow.dtos.response;
 
+import com.example.dawanow.entity.PaymentMethod;
 import com.example.dawanow.entity.RequestStatus;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,6 +17,7 @@ public record MedicineRequestResponse(
         LocalDateTime createdAt,
         List<MedicineRequestItemResponse> items,
         String prescriptionUrl,
-        String notes
+        String notes,
+        PaymentMethod paymentMethod
 ) {
 }

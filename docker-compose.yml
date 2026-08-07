@@ -1,16 +1,77 @@
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: dawanow-mysql
+  db:
+    image: mysql:8.4
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: dawanow
-      MYSQL_USER: dawanow
-      MYSQL_PASSWORD: dawanow
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-dawanow}
+      MYSQL_USER: ${MYSQL_USER:-dawanow}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dawanow}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
     ports:
-      - "3307:3306"
+      - "127.0.0.1:3307:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpass}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    networks:
+      - default
+    mem_limit: 512m
 
+  app:
+    build:
+      context: .
+    environment:
+      SERVER_PORT: 8080
+      SERVER_SERVLET_CONTEXT_PATH: /dawanow
+      DB_URL: jdbc:mysql://db:3306/${MYSQL_DATABASE:-dawanow}
+      DB_USERNAME: ${MYSQL_USER:-dawanow}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-dawanow}
+      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
+      PRODUCT_IMPORT_ENABLED: "true"
+      SEED_ENABLED: "true"
+      #      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
+      #      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DAWANOW_DATA_DUMMY_ENABLED: ${DUMMY_DATA_ENABLED:-false}
+      JWT_SECRET: ${JWT_SECRET:-}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      SBG_API_KEY: ${SBG_API_KEY:-}
+      SBG_BASE_URL: ${SBG_BASE_URL:-}
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_CURRENCY: ${STRIPE_CURRENCY:-usd}
+      AI_EMBEDDING_PROVIDER: ${AI_EMBEDDING_PROVIDER:-cohere}
+      AI_EMBEDDING_BASE_URL: ${AI_EMBEDDING_BASE_URL:-https://api.cohere.com/v2}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-embed-multilingual-v3.0}
+      SBG_CHAT_MODEL: ${SBG_CHAT_MODEL:-openai.gpt-oss-20b-1:0}
+      SBG_CHAT_MAX_TOKENS: ${SBG_CHAT_MAX_TOKENS:-400}
+      SBG_EMBEDDING_BATCH_SIZE: ${SBG_EMBEDDING_BATCH_SIZE:-32}
+      AI_RETRIEVAL_INITIALIZE_ON_STARTUP: ${AI_RETRIEVAL_INITIALIZE_ON_STARTUP:-true}
+      JAVA_OPTS: "-XX:MaxRAMPercentage=70.0 -XX:+UseSerialGC"
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    restart: unless-stopped
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - default
+      - iti
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=iti"
+      - "traefik.http.routers.dawanow.rule=PathPrefix(`/dawanow`)"
+      - "traefik.http.routers.dawanow.entrypoints=web"
+      - "traefik.http.services.dawanow.loadbalancer.server.port=8080"
+    mem_limit: 768m
+
+networks:
+  iti:
+    external: true
 volumes:
-  mysql_data:
+  mysql-data:

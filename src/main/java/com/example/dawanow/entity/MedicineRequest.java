@@ -62,6 +62,10 @@ public class MedicineRequest {
     @Column(name = "prescription_url")
     private String prescriptionUrl;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", nullable = false, length = 32)
+    private PaymentMethod paymentMethod = PaymentMethod.CASH;
+
     @Column(name = "notes", length = 1000)
     private String notes;
 }
