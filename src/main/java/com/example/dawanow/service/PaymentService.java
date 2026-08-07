@@ -51,6 +51,7 @@ public class PaymentService {
     public PaymentIntentResponse createPaymentIntent(CreatePaymentIntentRequest request) {
         requireSecretConfigured();
 
+        log.info("Creating PaymentIntent for order {}", request.orderId());
         User user = currentUserProvider.get();
         Order order = orderRepository.findById(request.orderId())
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + request.orderId()));
@@ -72,6 +73,7 @@ public class PaymentService {
                     "Order is set to pay with cash; Stripe payment is not available for this order"
             );
         }
+        log.info("Order {} is set to pay with cash; Stripe payment is not available for this order", order.getId());
 
         // Reuse an unfinished PaymentIntent when possible.
         if (StringUtils.hasText(order.getPaymentIntentId())
@@ -89,6 +91,7 @@ public class PaymentService {
                 log.warn("Could not reuse payment intent {}: {}", order.getPaymentIntentId(), exception.getMessage());
             }
         }
+        log.info("Creating new PaymentIntent for order {}", order.getId());
 
         long amountInMinorUnits = toMinorUnits(order.getPayableTotal());
         if (amountInMinorUnits < 1) {
