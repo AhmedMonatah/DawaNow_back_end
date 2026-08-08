@@ -189,7 +189,7 @@ public class PharmacySelectionOptimizer {
     }
 
     private BigDecimal lineTotal(PharmacyOfferItem item) {
-        return item.getRequestItem().getProduct().getPrice()
+        return item.getProduct().getPrice()
                 .multiply(BigDecimal.valueOf(item.getRequestItem().getQuantity()));
     }
 

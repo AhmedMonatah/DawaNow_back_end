@@ -21,10 +21,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -39,6 +41,7 @@ public class MedicineRequestConfirmationService {
     private final PharmacySelectionOptimizer selectionOptimizer;
     private final NotificationService notificationService;
     private final NotificationFactory notificationFactory;
+    private final RequestResultSseService requestResultSseService;
 
     @Transactional
     public ConfirmationResponse confirm(Long requestId, ConfirmSelectionRequest selection) {
@@ -51,20 +54,28 @@ public class MedicineRequestConfirmationService {
             throw new IllegalArgumentException("This medicine request has already been confirmed");
         }
 
-        LinkedHashSet<Long> selectedIds = new LinkedHashSet<>(selection.selectedRequestItemIds());
-        if (selectedIds.size() != selection.selectedRequestItemIds().size()) {
-            throw new IllegalArgumentException("Selected offer item IDs must be unique");
+        LinkedHashSet<Long> selectedIds = new LinkedHashSet<>(selection.selectedItems()
+                .stream().map(ConfirmSelectionRequest.SelectedItem::requestItemId).toList());
+        if (selectedIds.size() != selection.selectedItems().size()) {
+            throw new IllegalArgumentException("Selected request item IDs must be unique");
         }
 
-        List<PharmacyOfferItem> selectedOfferItems = pharmacyOfferItemRepository.findByRequestItemIdIn(selectedIds);
+        Map<Long, Long> productIdByRequestItem = selection.selectedItems().stream()
+                .collect(Collectors.toMap(
+                        ConfirmSelectionRequest.SelectedItem::requestItemId,
+                        ConfirmSelectionRequest.SelectedItem::productId));
 
-        Set<Long> itemsWithOffers = selectedOfferItems.stream()
+        List<PharmacyOfferItem> offerItems = pharmacyOfferItemRepository.findByRequestItemIdIn(selectedIds);
+
+        Set<Long> itemsWithOffers = offerItems.stream()
                 .map(item -> item.getRequestItem().getId())
                 .collect(Collectors.toSet());
 
         if (itemsWithOffers.size() != selectedIds.size()) {
             throw new ResourceNotFoundException("some request items do not have corresponding offers");
         }
+
+        List<PharmacyOfferItem> selectedOfferItems = selectChosenProducts(offerItems, productIdByRequestItem);
 
         validateSelectedItems(medicineRequest, selectedOfferItems);
         FulfillmentMethod fulfillmentMethod = selection.fulfillmentMethod();
@@ -106,6 +117,8 @@ public class MedicineRequestConfirmationService {
                 order.getId()
         ));
 
+        requestResultSseService.closeForRequest(requestId);
+
 
 
         List<OrderSummaryResponse> summaries = orders.stream()
@@ -124,11 +137,39 @@ public class MedicineRequestConfirmationService {
         }
     }
 
+    private List<PharmacyOfferItem> selectChosenProducts(
+            List<PharmacyOfferItem> offerItems,
+            Map<Long, Long> productIdByRequestItem
+    ) {
+        List<PharmacyOfferItem> selected = new ArrayList<>();
+        for (PharmacyOfferItem item : offerItems) {
+            Long chosenProductId = productIdByRequestItem.get(item.getRequestItem().getId());
+            if (chosenProductId != null && item.getProduct() != null
+                    && chosenProductId.equals(item.getProduct().getId())) {
+                selected.add(item);
+            }
+        }
+        log.info("Selected {} offer items for confirmation", selected.size());
+        log.info("Selected offer items: {}", selected.stream()
+                .map(item -> String.format("requestItemId=%d, productId=%d",
+                        item.getRequestItem().getId(), item.getProduct().getId()))
+                .collect(Collectors.joining(", ")));
+
+        Set<Long> selectedRequestItemIds = selected.stream()
+                .map(item -> item.getRequestItem().getId())
+                .collect(Collectors.toSet());
+        if (!selectedRequestItemIds.containsAll(productIdByRequestItem.keySet())) {
+            throw new IllegalArgumentException(
+                    "The chosen product must be offered for every selected request item"
+            );
+        }
+        return selected;
+    }
+
     private void validateSelectedItems(
             MedicineRequest medicineRequest,
             List<PharmacyOfferItem> selectedItems
-    ) {
-        Map<Long, Long> offerByPharmacy = new HashMap<>();
+    ) {        Map<Long, Long> offerByPharmacy = new HashMap<>();
 
         for (PharmacyOfferItem item : selectedItems) {
             PharmacyOffer offer = item.getOffer();
@@ -154,11 +195,11 @@ public class MedicineRequestConfirmationService {
 
     private void validateOfferItem(PharmacyOfferItem item) {
         RequestItem requestItem = item.getRequestItem();
-        Product product = requestItem.getProduct();
+        Product product = item.getProduct();
         if (requestItem.getQuantity() == null || requestItem.getQuantity() <= 0) {
             throw new IllegalArgumentException("Requested quantity must be positive");
         }
-        if (product.getPrice() == null || product.getPrice().signum() <= 0) {
+        if (product == null || product.getPrice() == null || product.getPrice().signum() <= 0) {
             throw new IllegalArgumentException("The selected product price must be positive");
         }
     }
@@ -200,7 +241,7 @@ public class MedicineRequestConfirmationService {
 
             BigDecimal total = BigDecimal.ZERO;
             for (PharmacyOfferItem selectedItem : pharmacyItems) {
-                Product product = selectedItem.getRequestItem().getProduct();
+                Product product = selectedItem.getProduct();
                 Long quantity = selectedItem.getRequestItem().getQuantity();
                 OrderItem orderItem = new OrderItem();
                 orderItem.setOrder(order);
