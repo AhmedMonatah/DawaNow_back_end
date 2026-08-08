@@ -91,7 +91,8 @@ public class MedicineRequestConfirmationService {
         masterOrder.setPaymentMethod(paymentMethod);
 
         if (paymentMethod == PaymentMethod.CARD) {
-            masterOrder.setPaymentStatus(PaymentStatus.UNPAID);
+            masterOrder.setPaymentStatus(PaymentStatus.PENDING);
+            masterOrder.setOrderStatus(OrderStatus.PENDING_PAYMENT);
         } else {
             masterOrder.setPaymentStatus(null);
             masterOrder.setPaymentIntentId(null);
