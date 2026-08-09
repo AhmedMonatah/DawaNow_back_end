@@ -7,6 +7,5 @@ import com.example.dawanow.entity.PaymentStatus;
 public record FulfillmentConfirmationResponse(Long masterOrderId,
                                               OrderStatus orderStatus,
                                               PaymentMethod paymentMethod,
-                                              PaymentStatus paymentStatus,
-                                              String paymentRedirectUrl) {
+                                              PaymentStatus paymentStatus) {
 }

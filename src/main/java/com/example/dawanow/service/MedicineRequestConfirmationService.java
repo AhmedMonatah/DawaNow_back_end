@@ -151,7 +151,7 @@ public class MedicineRequestConfirmationService {
         }
         masterOrderRepository.save(masterOrder);
         return new FulfillmentConfirmationResponse(masterOrder.getId(), masterOrder.getOrderStatus(), masterOrder.getPaymentMethod(),
-                masterOrder.getPaymentStatus(), null);
+                masterOrder.getPaymentStatus());
         }
 
 
