@@ -92,7 +92,7 @@ public class MedicineRequestController {
         return ResponseEntity.ok(ApiResponse.success("Medicine request created", medicineRequestResponse));
     }
 
-    @PostMapping("/{requestId}/confirm")
+    @PostMapping("/{requestId}/select")
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(
             summary = "Confirm selected offer items and create optimized pharmacy orders",

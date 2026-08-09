@@ -78,7 +78,6 @@ public class Order {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 
-    OrderStatus orderStatus= OrderStatus.PENDING;
 
     public BigDecimal getDeliveryFee() {
         return BigDecimal.valueOf(20.0);
