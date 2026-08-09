@@ -5,6 +5,7 @@ import com.example.dawanow.dtos.request.CreatePaymentIntentRequest;
 import com.example.dawanow.dtos.response.PaymentIntentResponse;
 import com.example.dawanow.entity.*;
 import com.example.dawanow.exception.ResourceNotFoundException;
+import com.example.dawanow.factory.NotificationFactory;
 import com.example.dawanow.repo.MasterOrderRepository;
 import com.example.dawanow.repo.OrderRepository;
 import com.example.dawanow.repo.StripeWebhookEventRepository;
@@ -20,6 +21,7 @@ import com.stripe.param.PaymentIntentCreateParams;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +44,8 @@ public class PaymentService {
     private final MasterOrderRepository masterOrderRepository;
     private final StripeWebhookEventRepository stripeWebhookEventRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final NotificationService notificationService;
+    private final NotificationFactory notificationFactory;
 
     @Transactional
     public PaymentIntentResponse createPaymentIntent(CreatePaymentIntentRequest request) {
@@ -173,6 +177,14 @@ public class PaymentService {
         order.setPaymentIntentId(paymentIntent.getId());
         order.setPaymentMethod(PaymentMethod.CARD);
         order.setPaidAt(LocalDateTime.now());
+        order.setOrderStatus(OrderStatus.PREPARING);
+        List<Order> orderList = order.getOrders();
+        orderList.forEach(subOrder -> {
+            subOrder.setStatus(OrderStatus.PREPARING);
+            notificationService.sendToPharmacy(
+                    notificationFactory.orderCreated(subOrder),
+                    order.getId()
+            );});
         masterOrderRepository.save(order);
         log.info("Order {} marked PAID via webhook {}", order.getId(), event.getId());
     }
