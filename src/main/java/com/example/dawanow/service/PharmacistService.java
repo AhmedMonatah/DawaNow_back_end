@@ -6,12 +6,14 @@ import com.example.dawanow.dtos.request.UpdateUserRequest;
 import com.example.dawanow.dtos.response.PaginatedResponse;
 import com.example.dawanow.dtos.response.PharmacistResponse;
 import com.example.dawanow.entity.*;
+import com.example.dawanow.event.SubOrderStatusChangedEvent;
 import com.example.dawanow.exception.ResourceNotFoundException;
 import com.example.dawanow.mapper.PharmacistMapper;
 import com.example.dawanow.repo.OrderRepository;
 import com.example.dawanow.repo.PharmacistRepository;
 import com.example.dawanow.repo.PharmacyRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,7 @@ public class PharmacistService {
     private final PharmacistMapper pharmacistMapper;
     private final UserService userService;
     private final OrderRepository orderRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Transactional(readOnly = true)
     public PharmacistResponse getCurrentPharmacist() {
@@ -53,6 +56,13 @@ public class PharmacistService {
             order.setOrderStatus(OrderStatus.READY_FOR_PICKUP);
         }
         else   order.setOrderStatus(OrderStatus.READY_FOR_DELIVERY);
+
+        applicationEventPublisher.publishEvent(
+                new SubOrderStatusChangedEvent(
+                        order.getId(),
+                        order.getMasterOrder().getId()
+                )
+        );
     }
 
     public PharmacistResponse updateCurrentPharmacist(UpdatePharmacistProfileRequest request) {
