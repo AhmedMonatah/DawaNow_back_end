@@ -227,7 +227,7 @@ public class PharmacistController {
     }
 
 
-    @PatchMapping("/orders/{orderId}/status")
+    @PatchMapping("/orders/{orderId}/ready")
     @PreAuthorize("hasRole('PHARMACIST')")
     @Operation(
             summary = "Mark pharmacy order as ready",
