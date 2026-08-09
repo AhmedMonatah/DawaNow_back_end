@@ -49,6 +49,8 @@ public class MasterOrder {
     @Column(name = "payment_status", length = 32)
     private PaymentStatus paymentStatus;
 
+    private LocalDateTime paymentExpiresAt;
+
     /** Used only for CARD. Null for CASH. */
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
@@ -59,7 +61,7 @@ public class MasterOrder {
 
     @Enumerated(EnumType.STRING)
     @Column
-    OrderStatus orderStatus = OrderStatus.PREPARING;
+    OrderStatus orderStatus = OrderStatus.PENDING;
 
     public void addCustomerOrder(Order order) {
         this.orders.add(order);
