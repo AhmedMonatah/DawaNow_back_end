@@ -1,29 +1,13 @@
 package com.example.dawanow.service;
 
 import com.example.dawanow.dtos.request.CreateOrderRequest;
-import com.example.dawanow.dtos.response.OrderGroupResponse;
-import com.example.dawanow.dtos.response.OrderItemResponse;
-import com.example.dawanow.dtos.response.OrderResponse;
-import com.example.dawanow.dtos.response.PaginatedResponse;
-import com.example.dawanow.dtos.response.ProductSummaryResponse;
-import com.example.dawanow.entity.Customer;
-import com.example.dawanow.entity.OfferItemStatus;
-import com.example.dawanow.entity.OfferStatus;
-import com.example.dawanow.entity.Order;
-import com.example.dawanow.entity.Pharmacist;
-import com.example.dawanow.entity.Pharmacy;
-import com.example.dawanow.entity.PharmacyOffer;
-import com.example.dawanow.entity.PharmacyOfferItem;
-import com.example.dawanow.entity.Product;
-import com.example.dawanow.entity.User;
-import com.example.dawanow.entity.UserRole;
+import com.example.dawanow.dtos.response.*;
+import com.example.dawanow.entity.*;
 import com.example.dawanow.exception.ResourceNotFoundException;
+import com.example.dawanow.mapper.MasterOrderMapper;
 import com.example.dawanow.mapper.OrderMapper;
-import com.example.dawanow.repo.OrderItemRepository;
-import com.example.dawanow.repo.OrderRepository;
-import com.example.dawanow.repo.PharmacyOfferRepository;
-import com.example.dawanow.repo.PharmacyRepository;
-import com.example.dawanow.repo.ProductRepository;
+import com.example.dawanow.repo.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -59,6 +43,8 @@ public class OrderService {
     private final PharmacyRepository pharmacyRepository;
     private final CurrentUserProvider currentUserProvider;
     private final OrderMapper orderMapper;
+    private final MasterOrderRepository masterOrderRepository;
+    private final MasterOrderMapper masterOrderMapper;
 
 
     public OrderResponse createOrder(PharmacyOffer offer) {
@@ -84,6 +70,50 @@ public class OrderService {
         order.setTotalPrice(offer.getTotalPrice());
 
         return orderMapper.toResponse(orderRepository.save(order));
+    }
+
+    @Transactional(readOnly = true)
+    public PaginatedResponse<MasterOrderResponse> getCurrentCustomerMasterOrders(
+            String lang,
+            Pageable pageable) {
+
+        Customer currentCustomer = requireCurrentCustomer();
+        String language = normalizeLanguage(lang);
+
+        Page<MasterOrder> masterOrderPage =
+                masterOrderRepository.findByUserId(
+                        currentCustomer.getId(),
+                        pageable
+                );
+
+        Page<MasterOrderResponse> responsePage =
+                masterOrderPage.map(masterOrder -> {
+
+                    List<Order> orders = masterOrder.getOrders();
+
+                    Map<Long, List<OrderItemResponse>> itemsByOrderId =
+                            resolveItems(orders, language);
+
+                    List<OrderResponse> orderResponses =
+                            orders.stream()
+                                    .map(order ->
+                                            orderMapper.toResponse(
+                                                    order,
+                                                    itemsByOrderId.getOrDefault(
+                                                            order.getId(),
+                                                            List.of()
+                                                    )
+                                            )
+                                    )
+                                    .toList();
+
+                    return masterOrderMapper.toResponse(
+                            masterOrder,
+                            orderResponses
+                    );
+                });
+
+        return PaginatedResponse.from(responsePage);
     }
 
     @Transactional(readOnly = true)

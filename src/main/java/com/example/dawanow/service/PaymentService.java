@@ -185,6 +185,7 @@ public class PaymentService {
                     notificationFactory.orderCreated(subOrder),
                     order.getId()
             );});
+        order.getRequest().setStatus(RequestStatus.COMPLETED);
         masterOrderRepository.save(order);
         log.info("Order {} marked PAID via webhook {}", order.getId(), event.getId());
     }

@@ -263,7 +263,6 @@ public class MedicineRequestConfirmationService {
             order.setOffer(offer);
             order.setDeliveryLatitude(medicineRequest.getDeliveryLatitude());
             order.setDeliveryLongitude(medicineRequest.getDeliveryLongitude());
-            order.setStatus(OrderStatus.PREPARING);
             order.setDate(LocalDateTime.now());
             order.setRequest(medicineRequest);
 
