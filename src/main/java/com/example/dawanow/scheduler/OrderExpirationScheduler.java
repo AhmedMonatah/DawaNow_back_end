@@ -31,7 +31,7 @@ public class OrderExpirationScheduler {
 
         for (MasterOrder order : expiredOrders) {
             order.setOrderStatus(OrderStatus.CANCELLED);
-            order.getOrders().forEach(o -> o.setOrderStatus(OrderStatus.CANCELLED));
+            order.getOrders().forEach(o -> o.setStatus(OrderStatus.CANCELLED));
 
             order.setPaymentStatus(PaymentStatus.EXPIRED);
         }

@@ -49,13 +49,13 @@ public class PharmacistService {
             throw new AccessDeniedException("You are not allowed to update this order");
         }
 
-        if (order.getOrderStatus() != OrderStatus.PREPARING) {
+        if (order.getStatus() != OrderStatus.PREPARING) {
             throw new IllegalStateException("Only preparing orders can be marked as ready");
         }
         if(order.getMasterOrder().getFulfillmentMethod() == FulfillmentMethod.PICKUP){
-            order.setOrderStatus(OrderStatus.READY_FOR_PICKUP);
+            order.setStatus(OrderStatus.READY_FOR_PICKUP);
         }
-        else   order.setOrderStatus(OrderStatus.READY_FOR_DELIVERY);
+        else   order.setStatus(OrderStatus.READY_FOR_DELIVERY);
 
         applicationEventPublisher.publishEvent(
                 new SubOrderStatusChangedEvent(
