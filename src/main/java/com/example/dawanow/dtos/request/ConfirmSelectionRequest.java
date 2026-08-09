@@ -7,8 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record ConfirmSelectionRequest(
-        @Valid @NotEmpty List<SelectedItem> selectedItems,
-    FulfillmentMethod fulfillmentMethod
+        @Valid @NotEmpty List<SelectedItem> selectedItems
 
 ) {
 
