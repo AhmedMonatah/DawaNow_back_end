@@ -2,12 +2,9 @@ package com.example.dawanow.controller;
 
 import com.example.dawanow.dtos.request.CreateMedicineRequestRequest;
 import com.example.dawanow.dtos.request.ConfirmSelectionRequest;
+import com.example.dawanow.dtos.request.FulfillmentRequest;
 import com.example.dawanow.dtos.request.UpdateMedicineRequestStatusRequest;
-import com.example.dawanow.dtos.response.ApiResponse;
-import com.example.dawanow.dtos.response.ConfirmationResponse;
-import com.example.dawanow.dtos.response.MedicineRequestResponse;
-import com.example.dawanow.dtos.response.MedicineRequestResultResponse;
-import com.example.dawanow.dtos.response.PaginatedResponse;
+import com.example.dawanow.dtos.response.*;
 import com.example.dawanow.service.FileStorageService;
 import com.example.dawanow.service.MedicineRequestService;
 import com.example.dawanow.service.MedicineRequestConfirmationService;
@@ -269,6 +266,60 @@ public class MedicineRequestController {
 //    }
 
 
+    @PostMapping("/{requestId}/confirm")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(
+            summary = "Confirm fulfillment method",
+            description = "Confirms the fulfillment method for the selected medicine request. "
+                    + "For cash payments, the order proceeds to preparation immediately. "
+                    + "For card payments, the order is pending payment for 15 minutes until the payment is completed,else cancelled"
+                    ,
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Fulfillment method confirmed successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid fulfillment method or the request cannot be confirmed"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "Customer role is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Medicine request or master order not found"
+            )
+    })
+    public ResponseEntity<ApiResponse> confirm(
+            @Parameter(
+                    description = "ID of the medicine request",
+                    required = true,
+                    example = "123"
+            )
+            @PathVariable Long requestId,
+
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Fulfillment method selected by the customer",
+                    required = true
+            )
+            @RequestBody FulfillmentRequest request) {
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "Order confirmed with fulfillment method",
+                        medicineRequestConfirmationService.confirm(requestId, request)
+                )
+        );
+    }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'PHARMACIST', 'ADMIN')")
