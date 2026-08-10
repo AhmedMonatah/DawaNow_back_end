@@ -21,22 +21,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             JOIN FETCH o.pharmacist
             JOIN FETCH o.request
             JOIN FETCH o.offer
-            WHERE o.user.id = :userId
+            JOIN FETCH o.masterOrder
+            WHERE o.id = :id
             """)
-    List<Order> findByUserId(@Param("userId") Long userId);
-
-    @Query("""
-            SELECT DISTINCT o.request.id FROM Order o
-            WHERE o.user.id = :userId
-            ORDER BY o.request.id DESC
-            """)
-    List<Long> findRequestIdsByUserId(@Param("userId") Long userId, Pageable pageable);
-
-    @Query("""
-            SELECT COUNT(DISTINCT o.request.id) FROM Order o
-            WHERE o.user.id = :userId
-            """)
-    long countDistinctRequestIdsByUserId(@Param("userId") Long userId);
+    Optional<Order> findById(@Param("id") Long id);
 
     @Query("""
             SELECT DISTINCT o FROM Order o
@@ -45,10 +33,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             JOIN FETCH o.pharmacist
             JOIN FETCH o.request
             JOIN FETCH o.offer
-            WHERE o.user.id = :userId AND o.request.id IN :requestIds
-            ORDER BY o.request.id DESC, o.date DESC
+            JOIN FETCH o.masterOrder
+            WHERE o.masterOrder.id IN :masterOrderIds
+            ORDER BY o.date DESC, o.id ASC
             """)
-    List<Order> findByUserIdAndRequestIdIn(@Param("userId") Long userId, @Param("requestIds") List<Long> requestIds);
+    List<Order> findByMasterOrderIdIn(@Param("masterOrderIds") List<Long> masterOrderIds);
 
     @Query(value = """
             SELECT DISTINCT o FROM Order o
@@ -57,14 +46,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             JOIN FETCH o.pharmacist
             JOIN FETCH o.request
             JOIN FETCH o.offer
+            JOIN FETCH o.masterOrder
             WHERE o.pharmacy.id = :pharmacyId
             """,
             countQuery = "SELECT COUNT(o) FROM Order o WHERE o.pharmacy.id = :pharmacyId")
     Page<Order> findByPharmacyId(@Param("pharmacyId") Long pharmacyId, Pageable pageable);
-
-    boolean existsByOfferId(Long offerId);
-
-    boolean existsByOfferRequestId(Long requestId);
 
     long countByPharmacyIdAndDateBetween(Long pharmacyId, LocalDateTime start, LocalDateTime end);
 
@@ -75,6 +61,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             JOIN FETCH o.pharmacist
             JOIN FETCH o.request
             JOIN FETCH o.offer
+            JOIN FETCH o.masterOrder
             WHERE o.pharmacy.id = :pharmacyId
               AND o.date BETWEEN :start AND :end
             ORDER BY o.date DESC

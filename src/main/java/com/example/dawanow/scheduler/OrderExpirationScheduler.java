@@ -5,11 +5,13 @@ import com.example.dawanow.entity.OrderStatus;
 import com.example.dawanow.entity.PaymentStatus;
 import com.example.dawanow.repo.MasterOrderRepository;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Component
 public class OrderExpirationScheduler {
 
     MasterOrderRepository masterOrderRepository;

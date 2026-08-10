@@ -22,12 +22,12 @@ public interface OrderMapper {
     @Mapping(target = "pharmacyPhone", source = "pharmacy.phoneNumber")
     @Mapping(target = "customerName", source = "user", qualifiedByName = "fullName")
     @Mapping(target= "subTotal", source = "totalPrice")
-    @Mapping(target = "total", expression = "java(order.getTotalPrice().add(order.getDeliveryFee()))")
-    @Mapping(target = "deliveryFee", expression = "java(order.getDeliveryFee())")
+    @Mapping(target = "total", source = "totalPrice")
     @Mapping(target = "customerNotes", source="request.notes")
     @Mapping(target = "deliveryAddress", source="request.deliveryAddress")
     @Mapping(target = "phoneNumber", source="user.phoneNumber")
     @Mapping(target = "prescriptionUrl", source="request.prescriptionUrl")
+    @Mapping(target = "paymentMethod", source = "masterOrder.paymentMethod")
     OrderResponse toResponse(Order order);
 
     /**
@@ -46,12 +46,12 @@ public interface OrderMapper {
     @Mapping(target = "pharmacyPhone", source = "order.pharmacy.phoneNumber")
     @Mapping(target = "customerName", source = "order.user", qualifiedByName = "fullName")
     @Mapping(target= "subTotal", source = "order.totalPrice")
-    @Mapping(target = "total", expression = "java(order.getTotalPrice().add(order.getDeliveryFee()))")
-    @Mapping(target = "deliveryFee", expression = "java(order.getDeliveryFee())")
+    @Mapping(target = "total", source = "order.totalPrice")
     @Mapping(target = "customerNotes", source="order.request.notes")
     @Mapping(target = "deliveryAddress", source="order.request.deliveryAddress")
     @Mapping(target = "phoneNumber", source="order.user.phoneNumber")
     @Mapping(target = "prescriptionUrl", source="order.request.prescriptionUrl")
+    @Mapping(target = "paymentMethod", source = "order.masterOrder.paymentMethod")
     @Mapping(target = "items", source = "orderItems")
     OrderResponse toResponse(Order order, List<OrderItemResponse> orderItems);
 

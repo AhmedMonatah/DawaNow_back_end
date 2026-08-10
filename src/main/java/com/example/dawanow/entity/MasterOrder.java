@@ -57,6 +57,9 @@ public class MasterOrder {
 
     private FulfillmentMethod fulfillmentMethod;
 
+    @Column(name = "delivery_fee", precision = 10, scale = 2)
+    private BigDecimal deliveryFee;
+
     private BigDecimal totalPrice;
 
     @Enumerated(EnumType.STRING)

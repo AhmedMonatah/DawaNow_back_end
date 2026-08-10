@@ -73,7 +73,6 @@ public class PaymentService {
                     "Order is set to pay with cash; Stripe payment is not available for this order"
             );
         }
-        log.info("Order {} is set to pay with cash; Stripe payment is not available for this order", order.getId());
 
         // Reuse an unfinished PaymentIntent when possible.
         if (StringUtils.hasText(order.getPaymentIntentId())
@@ -185,6 +184,7 @@ public class PaymentService {
                     notificationFactory.orderCreated(subOrder),
                     subOrder.getId()
             );});
+        order.getRequest().setStatus(RequestStatus.COMPLETED);
         masterOrderRepository.save(order);
         log.info("Order {} marked PAID via webhook {}", order.getId(), event.getId());
     }

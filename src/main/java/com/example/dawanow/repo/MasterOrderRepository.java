@@ -1,8 +1,11 @@
 package com.example.dawanow.repo;
 
 import com.example.dawanow.entity.MasterOrder;
+import com.example.dawanow.entity.Order;
 import com.example.dawanow.entity.OrderStatus;
 import com.example.dawanow.entity.PaymentStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,4 +32,18 @@ public interface MasterOrderRepository extends JpaRepository<MasterOrder, Long> 
             @Param("paymentStatus") PaymentStatus paymentStatus,
             @Param("now") LocalDateTime now
     );
+
+    @Query(
+            value = """
+        SELECT DISTINCT o FROM MasterOrder o
+        JOIN FETCH o.user
+        JOIN FETCH o.request
+        WHERE o.user.id = :userId
+        """,
+            countQuery = """
+        SELECT COUNT(o) FROM MasterOrder o
+        WHERE o.user.id = :userId
+        """
+    )
+    Page<MasterOrder> findByUserId(@Param("userId") Long userId, Pageable pageable);
 }

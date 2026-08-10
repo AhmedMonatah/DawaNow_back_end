@@ -98,7 +98,11 @@ public class MedicineRequestConfirmationService {
 
         orders.forEach(masterOrder::addCustomerOrder);
 
-        masterOrder.setTotalPrice(orders.stream().map(Order::getTotalPrice).reduce(BigDecimal.ZERO, BigDecimal::add));
+        int pharmacyCount = orders.size();
+        BigDecimal deliveryFee = BigDecimal.valueOf(15L + 5L * pharmacyCount + 10L * (pharmacyCount / 3));
+        masterOrder.setDeliveryFee(deliveryFee);
+        masterOrder.setTotalPrice(orders.stream().map(Order::getTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add).add(deliveryFee));
 
         updateOfferStatuses(medicineRequest.getId(), optimizedItems);
 
@@ -263,7 +267,6 @@ public class MedicineRequestConfirmationService {
             order.setOffer(offer);
             order.setDeliveryLatitude(medicineRequest.getDeliveryLatitude());
             order.setDeliveryLongitude(medicineRequest.getDeliveryLongitude());
-            order.setStatus(OrderStatus.PREPARING);
             order.setDate(LocalDateTime.now());
             order.setRequest(medicineRequest);
 
