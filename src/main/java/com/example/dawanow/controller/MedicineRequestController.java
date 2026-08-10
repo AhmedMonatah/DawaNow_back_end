@@ -322,11 +322,10 @@ public class MedicineRequestController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'PHARMACIST', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
     @Operation(
             summary = "Get medicine request by ID",
-            description = "Returns one medicine request to its customer owner, an application admin, or a pharmacist "
-                    + "whose pharmacy received that request.",
+            description = "Returns one medicine request to its customer owner or an application admin.",
             security = @SecurityRequirement(name = "basicAuth")
     )
     @ApiResponses({
@@ -341,7 +340,7 @@ public class MedicineRequestController {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "403",
-                    description = "Customer, pharmacist, or administrator role is required"
+                    description = "Customer or administrator role is required"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",

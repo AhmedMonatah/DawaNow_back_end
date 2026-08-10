@@ -1,6 +1,8 @@
 package com.example.dawanow.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -9,16 +11,24 @@ import static org.mockito.Mockito.when;
 
 import com.example.dawanow.dtos.response.MedicineRequestItemResponse;
 import com.example.dawanow.dtos.response.MedicineRequestResponse;
+import com.example.dawanow.dtos.response.PaginatedResponse;
+import com.example.dawanow.dtos.response.PharmacyMedicineRequestResponse;
 import com.example.dawanow.dtos.response.ProductSummaryResponse;
 import com.example.dawanow.dtos.response.RequestItemStatusUpdate;
 import com.example.dawanow.dtos.response.RequestResultUpdateEvent;
+import com.example.dawanow.entity.AssignmentStatus;
 import com.example.dawanow.entity.Customer;
 import com.example.dawanow.entity.MedicineRequest;
+import com.example.dawanow.entity.Pharmacist;
+import com.example.dawanow.entity.Pharmacy;
+import com.example.dawanow.entity.PharmacyAssignment;
 import com.example.dawanow.entity.PharmacyOffer;
 import com.example.dawanow.entity.PharmacyOfferItem;
 import com.example.dawanow.entity.Product;
 import com.example.dawanow.entity.RequestItem;
 import com.example.dawanow.entity.RequestItemStatus;
+import com.example.dawanow.entity.RequestStatus;
+import com.example.dawanow.exception.ResourceNotFoundException;
 import com.example.dawanow.mapper.MedicineRequestMapper;
 import com.example.dawanow.mapper.MedicineRequestResultItemMapper;
 import com.example.dawanow.repo.MedicineRequestRepository;
@@ -28,6 +38,7 @@ import com.example.dawanow.repo.PharmacyRepository;
 import com.example.dawanow.repo.ProductRepository;
 import com.example.dawanow.repo.RequestItemRepository;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +47,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class MedicineRequestServiceTest {
@@ -80,6 +95,168 @@ class MedicineRequestServiceTest {
                 pharmacyOfferItemRepository, medicineRequestResultItemMapper,
                 requestItemRepository, productRepository, requestResultSseService
         );
+    }
+
+    @Test
+    void getCurrentPharmacyRequestsReturnsAssignmentStatusAndDistance() {
+        Pharmacy pharmacy = new Pharmacy();
+        pharmacy.setId(5L);
+        Pharmacist pharmacist = new Pharmacist();
+        pharmacist.setPharmacy(pharmacy);
+
+        Customer customer = new Customer();
+        customer.setId(3L);
+
+        MedicineRequest request = new MedicineRequest();
+        request.setId(8L);
+        request.setCustomer(customer);
+
+        PharmacyAssignment assignment = new PharmacyAssignment();
+        assignment.setMedicineRequest(request);
+        assignment.setStatus(AssignmentStatus.OFFER_CREATED);
+        assignment.setDistanceKm(3.2);
+
+        Pageable pageable = PageRequest.of(0, 10);
+        when(currentUserProvider.get()).thenReturn(pharmacist);
+        when(pharmacyAssignmentRepository.getPharmacyAssignmentsByPharmacy_Id(5L, pageable))
+                .thenReturn(new PageImpl<>(List.of(assignment), pageable, 1));
+        when(requestItemRepository.findByRequestIdIn(List.of(8L))).thenReturn(List.of());
+
+        MedicineRequestResponse nested = new MedicineRequestResponse(
+                8L, 3L, "name", "phone", null, null, null, null, null, List.of(), null, null, null);
+        when(medicineRequestMapper.toResponse(request, List.of())).thenReturn(nested);
+
+        PaginatedResponse<PharmacyMedicineRequestResponse> result =
+                service.getCurrentPharmacyRequests("en", null, pageable);
+
+        assertThat(result.content()).hasSize(1);
+        PharmacyMedicineRequestResponse item = result.content().getFirst();
+        assertThat(item.assignmentStatus()).isEqualTo(AssignmentStatus.OFFER_CREATED);
+        assertThat(item.distanceKm()).isEqualTo(3.2);
+        assertThat(item.request()).isSameAs(nested);
+    }
+
+    @Test
+    void getCurrentPharmacyRequestsFiltersByStatus() {
+        Pharmacy pharmacy = new Pharmacy();
+        pharmacy.setId(5L);
+        Pharmacist pharmacist = new Pharmacist();
+        pharmacist.setPharmacy(pharmacy);
+
+        Customer customer = new Customer();
+        customer.setId(3L);
+
+        MedicineRequest request = new MedicineRequest();
+        request.setId(8L);
+        request.setCustomer(customer);
+
+        PharmacyAssignment assignment = new PharmacyAssignment();
+        assignment.setMedicineRequest(request);
+        assignment.setStatus(AssignmentStatus.PENDING);
+        assignment.setDistanceKm(1.5);
+
+        Pageable pageable = PageRequest.of(0, 10);
+        when(currentUserProvider.get()).thenReturn(pharmacist);
+        when(pharmacyAssignmentRepository.getPharmacyAssignmentsByPharmacy_IdAndStatus(5L, AssignmentStatus.PENDING, pageable))
+                .thenReturn(new PageImpl<>(List.of(assignment), pageable, 1));
+        when(requestItemRepository.findByRequestIdIn(List.of(8L))).thenReturn(List.of());
+
+        MedicineRequestResponse nested = new MedicineRequestResponse(
+                8L, 3L, "name", "phone", null, null, null, null, null, List.of(), null, null, null);
+        when(medicineRequestMapper.toResponse(request, List.of())).thenReturn(nested);
+
+        PaginatedResponse<PharmacyMedicineRequestResponse> result =
+                service.getCurrentPharmacyRequests("en", AssignmentStatus.PENDING, pageable);
+
+        assertThat(result.content()).hasSize(1);
+        PharmacyMedicineRequestResponse item = result.content().getFirst();
+        assertThat(item.assignmentStatus()).isEqualTo(AssignmentStatus.PENDING);
+        assertThat(item.distanceKm()).isEqualTo(1.5);
+    }
+
+    @Test
+    void getCurrentPharmacyRequestReturnsAssignmentAndDistance() {
+        Pharmacy pharmacy = new Pharmacy();
+        pharmacy.setId(5L);
+        Pharmacist pharmacist = new Pharmacist();
+        pharmacist.setPharmacy(pharmacy);
+
+        Customer customer = new Customer();
+        customer.setId(3L);
+
+        MedicineRequest request = new MedicineRequest();
+        request.setId(8L);
+        request.setCustomer(customer);
+
+        PharmacyAssignment assignment = new PharmacyAssignment();
+        assignment.setMedicineRequest(request);
+        assignment.setStatus(AssignmentStatus.OFFER_CREATED);
+        assignment.setDistanceKm(3.2);
+
+        when(currentUserProvider.get()).thenReturn(pharmacist);
+        when(pharmacyAssignmentRepository.findByPharmacyIdAndMedicineRequestId(5L, 8L))
+                .thenReturn(Optional.of(assignment));
+        when(requestItemRepository.findByRequestIdIn(List.of(8L))).thenReturn(List.of());
+
+        MedicineRequestResponse nested = new MedicineRequestResponse(
+                8L, 3L, "name", "phone", null, null, null, null, null, List.of(), null, null, null);
+        when(medicineRequestMapper.toResponse(request, List.of())).thenReturn(nested);
+
+        PharmacyMedicineRequestResponse result = service.getCurrentPharmacyRequest(8L, "en");
+
+        assertThat(result.assignmentStatus()).isEqualTo(AssignmentStatus.OFFER_CREATED);
+        assertThat(result.distanceKm()).isEqualTo(3.2);
+        assertThat(result.request()).isSameAs(nested);
+    }
+
+    @Test
+    void getCurrentPharmacyRequestThrowsWhenNotAssigned() {
+        Pharmacy pharmacy = new Pharmacy();
+        pharmacy.setId(5L);
+        Pharmacist pharmacist = new Pharmacist();
+        pharmacist.setPharmacy(pharmacy);
+
+        when(currentUserProvider.get()).thenReturn(pharmacist);
+        when(pharmacyAssignmentRepository.findByPharmacyIdAndMedicineRequestId(5L, 8L))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getCurrentPharmacyRequest(8L, "en"))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void getRequestByIdDeniesPharmacist() {
+        MedicineRequest request = new MedicineRequest();
+        request.setId(8L);
+        request.setCustomer(new Customer());
+
+        Pharmacist pharmacist = new Pharmacist();
+        pharmacist.setPharmacy(new Pharmacy());
+
+        when(medicineRequestRepository.findById(8L)).thenReturn(Optional.of(request));
+        when(currentUserProvider.get()).thenReturn(pharmacist);
+
+        assertThatThrownBy(() -> service.getRequestById(8L, "en"))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void expireRequestsMarksAssignmentsExpired() {
+        MedicineRequest request = new MedicineRequest();
+        request.setId(8L);
+
+        PharmacyAssignment assignment = new PharmacyAssignment();
+        assignment.setStatus(AssignmentStatus.PENDING);
+
+        when(medicineRequestRepository.findByStatusAndExpiresAtBefore(
+                eq(RequestStatus.PENDING), any(LocalDateTime.class))).thenReturn(List.of(request));
+        when(pharmacyAssignmentRepository.findByMedicineRequest_IdIn(List.of(8L)))
+                .thenReturn(List.of(assignment));
+
+        service.expireRequests();
+
+        assertThat(request.getStatus()).isEqualTo(RequestStatus.EXPIRED);
+        assertThat(assignment.getStatus()).isEqualTo(AssignmentStatus.EXPIRED);
     }
 
     @Test
