@@ -150,7 +150,7 @@ public class MedicineRequestConfirmationService {
                 order.setStatus(OrderStatus.PREPARING);
                 notificationService.sendToPharmacy(
                         notificationFactory.orderCreated(order),
-                        order.getId()
+                        order.getPharmacy().getId()
                 );});
         }
         masterOrderRepository.save(masterOrder);
