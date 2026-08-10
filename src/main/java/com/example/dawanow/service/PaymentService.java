@@ -183,7 +183,7 @@ public class PaymentService {
             subOrder.setStatus(OrderStatus.PREPARING);
             notificationService.sendToPharmacy(
                     notificationFactory.orderCreated(subOrder),
-                    order.getId()
+                    subOrder.getId()
             );});
         order.getRequest().setStatus(RequestStatus.COMPLETED);
         masterOrderRepository.save(order);
