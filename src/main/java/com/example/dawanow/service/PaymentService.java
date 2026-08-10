@@ -183,7 +183,7 @@ public class PaymentService {
             subOrder.setStatus(OrderStatus.PREPARING);
             notificationService.sendToPharmacy(
                     notificationFactory.orderCreated(subOrder),
-                    order.getId()
+                    subOrder.getId()
             );});
         masterOrderRepository.save(order);
         log.info("Order {} marked PAID via webhook {}", order.getId(), event.getId());
