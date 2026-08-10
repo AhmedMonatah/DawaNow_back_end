@@ -5,6 +5,8 @@ import com.example.dawanow.entity.*;
 import com.example.dawanow.exception.ResourceNotFoundException;
 import com.example.dawanow.mapper.MasterOrderMapper;
 import com.example.dawanow.repo.MasterOrderRepository;
+import com.example.dawanow.repo.OrderItemRepository;
+import com.example.dawanow.repo.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -14,10 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -32,6 +33,8 @@ public class MasterOrderService {
     private final MasterOrderRepository masterOrderRepository;
     private final CurrentUserProvider currentUserProvider;
     private final MasterOrderMapper masterOrderMapper;
+    private final OrderItemRepository orderItemRepository;
+    private final ProductRepository productRepository;
 
 
     @Transactional(readOnly = true)
@@ -57,11 +60,14 @@ public class MasterOrderService {
 
         List<Order> orders = masterOrder.getOrders();
 
+        List<OrderItemResponse> itemsByOrderId = resolveItems(orders, language).getOrDefault(masterOrder.getId(), List.of());
+
+
         List<OrderDraftResponse> orderDraftResponses = orders.stream()
                 .sorted(Comparator.comparing(
                         order -> order.getPharmacy().getId()
                 ))
-                .map(this::toOrderDraftResponse)
+                .map(order-> toOrderDraftResponse(order, itemsByOrderId))
                 .toList();
 
         return masterOrderMapper.toResponse(
@@ -91,9 +97,11 @@ public class MasterOrderService {
 
                     List<Order> orders = masterOrder.getOrders();
 
+                    List<OrderItemResponse> itemsByOrderId = resolveItems(orders, language).getOrDefault(masterOrder.getId(), List.of());
+
                     List<OrderDraftResponse> orderDraftResponses = orders.stream()
                             .sorted(Comparator.comparing(order -> order.getPharmacy().getId()))
-                            .map(this::toOrderDraftResponse)
+                            .map(order-> toOrderDraftResponse(order, itemsByOrderId))
                             .toList();
 
                     return masterOrderMapper.toResponse(
@@ -108,13 +116,9 @@ public class MasterOrderService {
 
 
 
-    private OrderDraftResponse toOrderDraftResponse(Order order) {
+    private OrderDraftResponse toOrderDraftResponse(Order order, List<OrderItemResponse> items) {
 
         Pharmacy pharmacy = order.getPharmacy();
-
-        List<OfferedItemResponse> items = order.getItems().stream()
-                .map(this::toOfferedItemResponse)
-                .toList();
 
         return new OrderDraftResponse(
                 order.getId(),
@@ -125,13 +129,13 @@ public class MasterOrderService {
                 items
         );
     }
-    private OfferedItemResponse toOfferedItemResponse(OrderItem item) {
-        return new OfferedItemResponse(
-                item.getId(),
-                item.getProduct().getId(),
-                item.getProduct().getName()
-        );
-    }
+//    private OfferedItemResponse toOfferedItemResponse(OrderItem item) {
+//        return new OfferedItemResponse(
+//                item.getId(),
+//                item.getProduct().getId(),
+//                item.getProduct().getName()
+//        );
+//    }
 
 
     private String normalizeLanguage(String lang) {
@@ -151,6 +155,39 @@ public class MasterOrderService {
             throw new AccessDeniedException("Only customers can view their orders");
         }
         return customer;
+    }
+
+
+    private Map<Long, List<OrderItemResponse>> resolveItems(List<Order> orders, String lang) {
+        List<Long> orderIds = orders.stream()
+                .map(Order::getId)
+                .toList();
+        if (orderIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<OrderItemResponse> items = orderItemRepository.findByOrderIdIn(orderIds);
+
+        List<Long> productIds = items.stream()
+                .map(OrderItemResponse::getProductId)
+                .filter(id -> id != null)   // deleted products have null productId
+                .distinct()
+                .toList();
+
+        if (!productIds.isEmpty()) {
+            Map<Long, ProductSummaryResponse> productsById = productRepository
+                    .findAllLocalized(productIds, lang, DEFAULT_LANG)
+                    .stream()
+                    .collect(Collectors.toMap(ProductSummaryResponse::id, Function.identity()));
+
+            items.forEach(item -> item.setProduct(productsById.get(item.getProductId())));
+        }
+
+        return items.stream().collect(Collectors.groupingBy(
+                OrderItemResponse::getOrderId,
+                LinkedHashMap::new,
+                Collectors.toList()
+        ));
     }
 
 }

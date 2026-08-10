@@ -117,10 +117,10 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'PHARMACIST', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
     @Operation(
             summary = "Get order by ID",
-            description = "Returns one order only when the current user is its customer owner, the admin pharmacist "
+            description = "Returns one order only when the current user is the admin pharmacist "
                     + "of the pharmacy that received it, or a system user with the ADMIN role.",
             security = @SecurityRequirement(name = "basicAuth")
     )

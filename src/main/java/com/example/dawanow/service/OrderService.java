@@ -166,29 +166,5 @@ public class OrderService {
         return language;
     }
 
-    private OrderDraftResponse toOrderDraftResponse(Order order) {
-
-        Pharmacy pharmacy = order.getPharmacy();
-
-        List<OfferedItemResponse> items = order.getItems().stream()
-                .map(this::toOfferedItemResponse)
-                .toList();
-
-        return new OrderDraftResponse(
-                order.getId(),
-                pharmacy.getId(),
-                pharmacy.getName(),
-                pharmacy.getLatitude(),
-                pharmacy.getLongitude(),
-                items
-        );
-    }
-    private OfferedItemResponse toOfferedItemResponse(OrderItem item) {
-        return new OfferedItemResponse(
-                item.getId(),
-                item.getProduct().getId(),
-                item.getProduct().getName()
-        );
-    }
 
 }

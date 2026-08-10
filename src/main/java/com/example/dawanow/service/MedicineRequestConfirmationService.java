@@ -12,6 +12,7 @@ import com.example.dawanow.repo.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class MedicineRequestConfirmationService {
 
+
+
+    private static final String DEFAULT_LANG = "en";
+    private static final String ARABIC = "ar";
+
     private final MedicineRequestRepository medicineRequestRepository;
     private final PharmacyOfferRepository pharmacyOfferRepository;
     private final PharmacyOfferItemRepository pharmacyOfferItemRepository;
@@ -36,6 +42,8 @@ public class MedicineRequestConfirmationService {
     private final NotificationService notificationService;
     private final NotificationFactory notificationFactory;
     private final RequestResultSseService requestResultSseService;
+    private final ProductRepository productRepository;
+    private final OrderItemRepository orderItemRepository;
 
     @Transactional
     public ConfirmationResponse confirm(Long requestId, ConfirmSelectionRequest selection) {
@@ -117,11 +125,14 @@ public class MedicineRequestConfirmationService {
 
 
 
+        List<OrderItemResponse> items = resolveItems(orders, DEFAULT_LANG).getOrDefault(masterOrder.getId(), List.of());
+
+
         List<OrderDraftResponse> orderDraftResponses = orders.stream()
                 .sorted(Comparator.comparing(order -> order.getPharmacy().getId()))
-                .map(this::toOrderDraftResponse)
+                .map(order -> toOrderDraftResponse(order, items))
                 .toList();
-        return new ConfirmationResponse(medicineRequest.getId(), orderDraftResponses);
+        return new ConfirmationResponse(medicineRequest.getId(), orderDraftResponses, masterOrder.getDeliveryFee(),masterOrder.getTotalPrice());
     }
 
     @Transactional
@@ -331,13 +342,9 @@ public class MedicineRequestConfirmationService {
         return customer;
     }
 
-    private OrderDraftResponse toOrderDraftResponse(Order order) {
+    private OrderDraftResponse toOrderDraftResponse(Order order, List<OrderItemResponse> items) {
 
         Pharmacy pharmacy = order.getPharmacy();
-
-        List<OfferedItemResponse> items = order.getItems().stream()
-                .map(this::toOfferedItemResponse)
-                .toList();
 
         return new OrderDraftResponse(
                 order.getId(),
@@ -365,5 +372,37 @@ public class MedicineRequestConfirmationService {
                     "The order confirmation period has expired"
             );
         }
+    }
+
+    private Map<Long, List<OrderItemResponse>> resolveItems(List<Order> orders, String lang) {
+        List<Long> orderIds = orders.stream()
+                .map(Order::getId)
+                .toList();
+        if (orderIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<OrderItemResponse> items = orderItemRepository.findByOrderIdIn(orderIds);
+
+        List<Long> productIds = items.stream()
+                .map(OrderItemResponse::getProductId)
+                .filter(id -> id != null)   // deleted products have null productId
+                .distinct()
+                .toList();
+
+        if (!productIds.isEmpty()) {
+            Map<Long, ProductSummaryResponse> productsById = productRepository
+                    .findAllLocalized(productIds, lang, DEFAULT_LANG)
+                    .stream()
+                    .collect(Collectors.toMap(ProductSummaryResponse::id, Function.identity()));
+
+            items.forEach(item -> item.setProduct(productsById.get(item.getProductId())));
+        }
+
+        return items.stream().collect(Collectors.groupingBy(
+                OrderItemResponse::getOrderId,
+                LinkedHashMap::new,
+                Collectors.toList()
+        ));
     }
 }
