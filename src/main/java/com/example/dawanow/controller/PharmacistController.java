@@ -17,13 +17,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.nio.file.AccessDeniedException;
 
 @RestController
 @RequestMapping("/api/v1/pharmacists")
@@ -229,4 +225,46 @@ public class PharmacistController {
         pharmacistService.removePharmacistFromPharmacy(pharmacyId, id);
         return ResponseEntity.ok(ApiResponse.success("Pharmacist removed from pharmacy"));
     }
+
+
+    @PatchMapping("/orders/{orderId}/ready")
+    @PreAuthorize("hasRole('PHARMACIST')")
+    @Operation(
+            summary = "Mark pharmacy order as ready",
+            description = "Marks a pharmacy order as ready. The system automatically sets the status to READY_FOR_PICKUP or READY_FOR_DELIVERY based on the customer's selected fulfillment method.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Order status updated successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Order cannot be marked as ready in its current state"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "The authenticated pharmacist is not allowed to update this order"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Order not found"
+            )
+    })
+    public ResponseEntity<ApiResponse<Void>> setOrderReady(
+            @PathVariable Long orderId
+    ) throws AccessDeniedException {
+        pharmacistService.setOrderReady(orderId);
+        return ResponseEntity.ok(
+                ApiResponse.success("Order marked as ready")
+        );
+    }
+
 }
+

@@ -4,9 +4,7 @@ public enum AssignmentStatus {
 
     PENDING,
 
-    ACCEPTED,
-
-    DECLINED,
+    OFFER_CREATED,
 
     EXPIRED
 }

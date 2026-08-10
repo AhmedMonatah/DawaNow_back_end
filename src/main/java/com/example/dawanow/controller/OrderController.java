@@ -1,10 +1,7 @@
 package com.example.dawanow.controller;
 
 import com.example.dawanow.dtos.request.CreateOrderRequest;
-import com.example.dawanow.dtos.response.ApiResponse;
-import com.example.dawanow.dtos.response.OrderGroupResponse;
-import com.example.dawanow.dtos.response.OrderResponse;
-import com.example.dawanow.dtos.response.PaginatedResponse;
+import com.example.dawanow.dtos.response.*;
 import com.example.dawanow.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -49,8 +46,8 @@ public class OrderController {
     @GetMapping
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(
-            summary = "Get current customer orders",
-            description = "Customer only. Returns paginated list of orders placed by the currently authenticated customer.",
+            summary = "Get current customer Master orders",
+            description = "Customer only. Returns paginated list of master orders placed by the currently authenticated customer.",
             security = @SecurityRequirement(name = "basicAuth")
     )
     @ApiResponses({
@@ -68,12 +65,12 @@ public class OrderController {
                     description = "Customer role is required"
             )
     })
-    public ResponseEntity<ApiResponse<PaginatedResponse<OrderGroupResponse>>> getCurrentCustomerOrders(
+    public ResponseEntity<ApiResponse<PaginatedResponse<MasterOrderResponse>>> getCurrentCustomerOrders(
             @Parameter(description = "Response language: en or ar", example = "en")
             @RequestParam(defaultValue = "en") String lang,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Orders fetched", orderService.getCurrentCustomerOrders(lang, pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Master Orders fetched", orderService.getCurrentCustomerMasterOrders(lang, pageable)));
     }
 
     @GetMapping("/pharmacy/{pharmacyId}")

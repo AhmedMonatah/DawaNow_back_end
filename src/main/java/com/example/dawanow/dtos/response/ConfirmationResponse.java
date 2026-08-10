@@ -4,6 +4,6 @@ import java.util.List;
 
 public record ConfirmationResponse(
         Long requestId,
-        List<OrderSummaryResponse> orders
+        List<OrderDraftResponse> offers
 ) {
 }

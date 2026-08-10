@@ -2,10 +2,9 @@ package com.example.dawanow.dtos.response;
 
 import com.example.dawanow.entity.OrderStatus;
 import com.example.dawanow.entity.PaymentMethod;
-import com.example.dawanow.entity.PaymentStatus;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
 public record OrderResponse(
@@ -24,15 +23,12 @@ public record OrderResponse(
         String pharmacistName,
         Long offerId,
         BigDecimal subTotal,
-        BigDecimal deliveryFee,
         BigDecimal total,
         Double deliveryLatitude,
         Double deliveryLongitude,
         LocalDate createdAt,
         OrderStatus status,
         PaymentMethod paymentMethod,
-        PaymentStatus paymentStatus,
-        LocalDateTime paidAt,
         List<OrderItemResponse> items
 ) {
 }

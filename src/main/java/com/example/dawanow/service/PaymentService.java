@@ -3,13 +3,10 @@ package com.example.dawanow.service;
 import com.example.dawanow.config.StripeProperties;
 import com.example.dawanow.dtos.request.CreatePaymentIntentRequest;
 import com.example.dawanow.dtos.response.PaymentIntentResponse;
-import com.example.dawanow.entity.Order;
-import com.example.dawanow.entity.OrderStatus;
-import com.example.dawanow.entity.PaymentMethod;
-import com.example.dawanow.entity.PaymentStatus;
-import com.example.dawanow.entity.StripeWebhookEvent;
-import com.example.dawanow.entity.User;
+import com.example.dawanow.entity.*;
 import com.example.dawanow.exception.ResourceNotFoundException;
+import com.example.dawanow.factory.NotificationFactory;
+import com.example.dawanow.repo.MasterOrderRepository;
 import com.example.dawanow.repo.OrderRepository;
 import com.example.dawanow.repo.StripeWebhookEventRepository;
 import com.stripe.Stripe;
@@ -24,6 +21,7 @@ import com.stripe.param.PaymentIntentCreateParams;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -43,9 +41,11 @@ public class PaymentService {
     private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
     private final StripeProperties stripeProperties;
-    private final OrderRepository orderRepository;
+    private final MasterOrderRepository masterOrderRepository;
     private final StripeWebhookEventRepository stripeWebhookEventRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final NotificationService notificationService;
+    private final NotificationFactory notificationFactory;
 
     @Transactional
     public PaymentIntentResponse createPaymentIntent(CreatePaymentIntentRequest request) {
@@ -53,18 +53,18 @@ public class PaymentService {
 
         log.info("Creating PaymentIntent for order {}", request.orderId());
         User user = currentUserProvider.get();
-        Order order = orderRepository.findById(request.orderId())
+        MasterOrder order = masterOrderRepository.findById(request.orderId())
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + request.orderId()));
 
         if (!order.getUser().getId().equals(user.getId())) {
-            throw new AccessDeniedException("Order does not belong to the authenticated user");
+            throw new AccessDeniedException("Master Order does not belong to the authenticated user");
         }
 
         if (order.getPaymentStatus() == PaymentStatus.PAID) {
             throw new IllegalArgumentException("Order is already paid");
         }
 
-        if (order.getStatus() == OrderStatus.CANCELLED) {
+        if (order.getOrderStatus() == OrderStatus.CANCELLED) {
             throw new IllegalArgumentException("Cannot pay for a cancelled order");
         }
 
@@ -73,7 +73,6 @@ public class PaymentService {
                     "Order is set to pay with cash; Stripe payment is not available for this order"
             );
         }
-        log.info("Order {} is set to pay with cash; Stripe payment is not available for this order", order.getId());
 
         // Reuse an unfinished PaymentIntent when possible.
         if (StringUtils.hasText(order.getPaymentIntentId())
@@ -93,7 +92,7 @@ public class PaymentService {
         }
         log.info("Creating new PaymentIntent for order {}", order.getId());
 
-        long amountInMinorUnits = toMinorUnits(order.getPayableTotal());
+        long amountInMinorUnits = toMinorUnits(order.getTotalPrice());
         if (amountInMinorUnits < 1) {
             throw new IllegalArgumentException("Order payable amount must be greater than zero");
         }
@@ -117,7 +116,7 @@ public class PaymentService {
 
             order.setPaymentIntentId(intent.getId());
             order.setPaymentStatus(PaymentStatus.PENDING);
-            orderRepository.save(order);
+            masterOrderRepository.save(order);
 
             log.info("Created PaymentIntent {} for order {} (user {})", intent.getId(), order.getId(), user.getId());
             return new PaymentIntentResponse(intent.getId(), intent.getClientSecret());
@@ -166,7 +165,7 @@ public class PaymentService {
 
     private void handlePaymentIntentSucceeded(Event event) {
         PaymentIntent paymentIntent = requirePaymentIntent(event);
-        Order order = findOrderForPaymentIntent(paymentIntent);
+        MasterOrder order = findOrderForPaymentIntent(paymentIntent);
 
         if (order.getPaymentStatus() == PaymentStatus.PAID) {
             log.info("Order {} already PAID; skipping duplicate success handling", order.getId());
@@ -177,13 +176,22 @@ public class PaymentService {
         order.setPaymentIntentId(paymentIntent.getId());
         order.setPaymentMethod(PaymentMethod.CARD);
         order.setPaidAt(LocalDateTime.now());
-        orderRepository.save(order);
+        order.setOrderStatus(OrderStatus.PREPARING);
+        List<Order> orderList = order.getOrders();
+        orderList.forEach(subOrder -> {
+            subOrder.setStatus(OrderStatus.PREPARING);
+            notificationService.sendToPharmacy(
+                    notificationFactory.orderCreated(subOrder),
+                    subOrder.getId()
+            );});
+        order.getRequest().setStatus(RequestStatus.COMPLETED);
+        masterOrderRepository.save(order);
         log.info("Order {} marked PAID via webhook {}", order.getId(), event.getId());
     }
 
     private void handlePaymentIntentFailed(Event event) {
         PaymentIntent paymentIntent = requirePaymentIntent(event);
-        Order order = findOrderForPaymentIntent(paymentIntent);
+        MasterOrder order = findOrderForPaymentIntent(paymentIntent);
 
         if (order.getPaymentStatus() == PaymentStatus.PAID) {
             log.warn("Ignoring failure event for already-paid order {}", order.getId());
@@ -192,13 +200,13 @@ public class PaymentService {
 
         order.setPaymentStatus(PaymentStatus.FAILED);
         order.setPaymentIntentId(paymentIntent.getId());
-        orderRepository.save(order);
+        masterOrderRepository.save(order);
         log.info("Order {} marked FAILED via webhook {}", order.getId(), event.getId());
     }
 
     private void handlePaymentIntentCanceled(Event event) {
         PaymentIntent paymentIntent = requirePaymentIntent(event);
-        Order order = findOrderForPaymentIntent(paymentIntent);
+        MasterOrder order = findOrderForPaymentIntent(paymentIntent);
 
         if (order.getPaymentStatus() == PaymentStatus.PAID) {
             log.warn("Ignoring cancel event for already-paid order {}", order.getId());
@@ -207,12 +215,12 @@ public class PaymentService {
 
         order.setPaymentStatus(PaymentStatus.CANCELED);
         order.setPaymentIntentId(paymentIntent.getId());
-        orderRepository.save(order);
+        masterOrderRepository.save(order);
         log.info("Order {} marked CANCELED via webhook {}", order.getId(), event.getId());
     }
 
-    private Order findOrderForPaymentIntent(PaymentIntent paymentIntent) {
-        Order byIntent = orderRepository.findByPaymentIntentId(paymentIntent.getId()).orElse(null);
+    private MasterOrder findOrderForPaymentIntent(PaymentIntent paymentIntent) {
+        MasterOrder byIntent = masterOrderRepository.findByPaymentIntentId(paymentIntent.getId()).orElse(null);
         if (byIntent != null) {
             return byIntent;
         }
@@ -236,7 +244,7 @@ public class PaymentService {
             );
         }
 
-        return orderRepository.findById(orderId)
+        return masterOrderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found for webhook: " + orderId));
     }
 

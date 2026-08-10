@@ -3,6 +3,7 @@ package com.example.dawanow.controller;
 import com.example.dawanow.dtos.request.CreatePharmacyRequest;
 import com.example.dawanow.dtos.request.UpdatePharmacyRequest;
 import com.example.dawanow.dtos.response.*;
+import com.example.dawanow.entity.AssignmentStatus;
 import com.example.dawanow.entity.DashboardPeriod;
 import com.example.dawanow.entity.Pharmacist;
 import com.example.dawanow.entity.User;
@@ -69,7 +70,8 @@ public class PharmacyController {
     @PreAuthorize("hasRole('PHARMACIST')")
     @Operation(
             summary = "Get current pharmacy requests",
-            description = "Returns a paginated list of medicine requests assigned to the logged-in pharmacist's pharmacy.",
+            description = "Returns a paginated list of medicine requests assigned to the logged-in pharmacist's pharmacy, "
+                    + "filterable by assignment status (PENDING, OFFER_CREATED, EXPIRED).",
             security = @SecurityRequirement(name = "basicAuth"))
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -90,14 +92,54 @@ public class PharmacyController {
                     description = "Pharmacist not assigned to any pharmacy"
             )
     })
-    public ResponseEntity<ApiResponse<PaginatedResponse<MedicineRequestResponse>>> getCurrentPharmacyRequests(
+    public ResponseEntity<ApiResponse<PaginatedResponse<PharmacyMedicineRequestResponse>>> getCurrentPharmacyRequests(
             @Parameter(description = "Response language: en or ar", example = "en")
             @RequestParam(defaultValue = "en") String lang,
+            @Parameter(description = "Filter by assignment status: PENDING, OFFER_CREATED, EXPIRED")
+            @RequestParam(required = false) AssignmentStatus status,
             @ParameterObject Pageable pageable) {
 
-        PaginatedResponse<MedicineRequestResponse> requests = medicineRequestService.getCurrentPharmacyRequests(lang, pageable);
+        PaginatedResponse<PharmacyMedicineRequestResponse> requests = medicineRequestService.getCurrentPharmacyRequests(lang, status, pageable);
 
         return ResponseEntity.ok(ApiResponse.success("Pharmacy requests fetched successfully", requests));
+    }
+
+    @GetMapping("/requests/{requestId}")
+    @PreAuthorize("hasRole('PHARMACIST')")
+    @Operation(
+            summary = "Get a single current pharmacy request",
+            description = "Returns one medicine request assigned to the logged-in pharmacist's pharmacy, "
+                    + "along with its assignment status and distance.",
+            security = @SecurityRequirement(name = "basicAuth"))
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Pharmacy request fetched successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "Pharmacist role is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Pharmacist not assigned to any pharmacy or request was not assigned to it"
+            )
+    })
+    public ResponseEntity<ApiResponse<PharmacyMedicineRequestResponse>> getCurrentPharmacyRequest(
+            @Parameter(description = "Response language: en or ar", example = "en")
+            @RequestParam(defaultValue = "en") String lang,
+            @Parameter(description = "Request ID", example = "1", required = true)
+            @PathVariable Long requestId) {
+
+        PharmacyMedicineRequestResponse request =
+                medicineRequestService.getCurrentPharmacyRequest(requestId, lang);
+
+        return ResponseEntity.ok(ApiResponse.success("Pharmacy request fetched successfully", request));
     }
 
     @GetMapping("/mine")
