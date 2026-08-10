@@ -60,7 +60,7 @@ public class MasterOrderService {
 
         List<Order> orders = masterOrder.getOrders();
 
-        List<OrderItemResponse> itemsByOrderId = resolveItems(orders, language).getOrDefault(masterOrder.getId(), List.of());
+        List<OrderItemResponse> itemsByOrderId = resolveItems(orders, lang).getOrDefault(masterOrder.getId(), List.of());
 
 
         List<OrderDraftResponse> orderDraftResponses = orders.stream()
@@ -97,7 +97,7 @@ public class MasterOrderService {
 
                     List<Order> orders = masterOrder.getOrders();
 
-                    List<OrderItemResponse> itemsByOrderId = resolveItems(orders, language).getOrDefault(masterOrder.getId(), List.of());
+                    List<OrderItemResponse> itemsByOrderId = resolveItems(orders, lang).getOrDefault(masterOrder.getId(), List.of());
 
                     List<OrderDraftResponse> orderDraftResponses = orders.stream()
                             .sorted(Comparator.comparing(order -> order.getPharmacy().getId()))
