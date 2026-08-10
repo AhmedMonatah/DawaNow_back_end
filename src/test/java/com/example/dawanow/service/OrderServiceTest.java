@@ -145,7 +145,7 @@ class OrderServiceTest {
                 id, 1L, "name", "notes", "addr", "phone", null,
                 1L, "pharm", "pharmAddr", "pharmPhone",
                 1L, "pharmacist", 1L, null, null,
-                null, null, LocalDate.now(), null, null, null, null, List.of()
+                null, null, LocalDate.now(), null, null, List.of()
         );
     }
 }

@@ -27,6 +27,7 @@ public interface OrderMapper {
     @Mapping(target = "deliveryAddress", source="request.deliveryAddress")
     @Mapping(target = "phoneNumber", source="user.phoneNumber")
     @Mapping(target = "prescriptionUrl", source="request.prescriptionUrl")
+    @Mapping(target = "paymentMethod", source = "masterOrder.paymentMethod")
     OrderResponse toResponse(Order order);
 
     /**
@@ -50,6 +51,7 @@ public interface OrderMapper {
     @Mapping(target = "deliveryAddress", source="order.request.deliveryAddress")
     @Mapping(target = "phoneNumber", source="order.user.phoneNumber")
     @Mapping(target = "prescriptionUrl", source="order.request.prescriptionUrl")
+    @Mapping(target = "paymentMethod", source = "order.masterOrder.paymentMethod")
     @Mapping(target = "items", source = "orderItems")
     OrderResponse toResponse(Order order, List<OrderItemResponse> orderItems);
 

@@ -2,12 +2,9 @@ package com.example.dawanow.dtos.response;
 
 import com.example.dawanow.entity.OrderStatus;
 import com.example.dawanow.entity.PaymentMethod;
-import com.example.dawanow.entity.PaymentStatus;
-import org.mapstruct.Mapping;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
 public record OrderResponse(
@@ -31,12 +28,7 @@ public record OrderResponse(
         Double deliveryLongitude,
         LocalDate createdAt,
         OrderStatus status,
-        @Mapping(target = "paymentMethod", source = "masterOrder.paymentMethod")
         PaymentMethod paymentMethod,
-        @Mapping(target = "paymentStatus", source = "masterOrder.paymentStatus")
-        PaymentStatus paymentStatus,
-        @Mapping(target = "paidAt", source = "masterOrder.paidAt")
-        LocalDateTime paidAt,
         List<OrderItemResponse> items
 ) {
 }
