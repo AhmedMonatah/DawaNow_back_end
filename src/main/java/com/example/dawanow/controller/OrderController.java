@@ -43,35 +43,6 @@ public class OrderController {
 
     private final OrderService orderService;
 
-    @GetMapping
-    @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(
-            summary = "Get current customer Master orders",
-            description = "Customer only. Returns paginated list of master orders placed by the currently authenticated customer.",
-            security = @SecurityRequirement(name = "basicAuth")
-    )
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200",
-                    useReturnTypeSchema = true,
-                    description = "Orders fetched successfully with pagination metadata"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "401",
-                    description = "Authentication is required"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "403",
-                    description = "Customer role is required"
-            )
-    })
-    public ResponseEntity<ApiResponse<PaginatedResponse<MasterOrderResponse>>> getCurrentCustomerOrders(
-            @Parameter(description = "Response language: en or ar", example = "en")
-            @RequestParam(defaultValue = "en") String lang,
-            @ParameterObject @PageableDefault(size = 20) Pageable pageable
-    ) {
-        return ResponseEntity.ok(ApiResponse.success("Master Orders fetched", orderService.getCurrentCustomerMasterOrders(lang, pageable)));
-    }
 
     @GetMapping("/pharmacy/{pharmacyId}")
     @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
@@ -185,4 +156,6 @@ public class OrderController {
     ) {
         return ResponseEntity.ok(ApiResponse.success("Order fetched", orderService.getOrderById(id, lang)));
     }
+
+
 }

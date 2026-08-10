@@ -7,10 +7,7 @@ import com.example.dawanow.mapper.MasterOrderMapper;
 import com.example.dawanow.mapper.OrderMapper;
 import com.example.dawanow.repo.*;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -40,50 +37,6 @@ public class OrderService {
     private final MasterOrderRepository masterOrderRepository;
     private final MasterOrderMapper masterOrderMapper;
 
-
-    @Transactional(readOnly = true)
-    public PaginatedResponse<MasterOrderResponse> getCurrentCustomerMasterOrders(
-            String lang,
-            Pageable pageable) {
-
-        Customer currentCustomer = requireCurrentCustomer();
-        String language = normalizeLanguage(lang);
-
-        Page<MasterOrder> masterOrderPage =
-                masterOrderRepository.findByUserId(
-                        currentCustomer.getId(),
-                        pageable
-                );
-
-        Page<MasterOrderResponse> responsePage =
-                masterOrderPage.map(masterOrder -> {
-
-                    List<Order> orders = masterOrder.getOrders();
-
-                    Map<Long, List<OrderItemResponse>> itemsByOrderId =
-                            resolveItems(orders, language);
-
-                    List<OrderResponse> orderResponses =
-                            orders.stream()
-                                    .map(order ->
-                                            orderMapper.toResponse(
-                                                    order,
-                                                    itemsByOrderId.getOrDefault(
-                                                            order.getId(),
-                                                            List.of()
-                                                    )
-                                            )
-                                    )
-                                    .toList();
-
-                    return masterOrderMapper.toResponse(
-                            masterOrder,
-                            orderResponses
-                    );
-                });
-
-        return PaginatedResponse.from(responsePage);
-    }
 
     @Transactional(readOnly = true)
     public PaginatedResponse<OrderResponse> getPharmacyOrders(Long pharmacyId, String lang, Pageable pageable) {
@@ -140,6 +93,7 @@ public class OrderService {
         Map<Long, List<OrderItemResponse>> itemsByOrderId = resolveItems(List.of(order), language);
         return toResponse(order, itemsByOrderId);
     }
+
 
     private OrderResponse toResponse(Order order, Map<Long, List<OrderItemResponse>> itemsByOrderId) {
         return orderMapper.toResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of()));
@@ -211,4 +165,30 @@ public class OrderService {
         }
         return language;
     }
+
+    private OrderDraftResponse toOrderDraftResponse(Order order) {
+
+        Pharmacy pharmacy = order.getPharmacy();
+
+        List<OfferedItemResponse> items = order.getItems().stream()
+                .map(this::toOfferedItemResponse)
+                .toList();
+
+        return new OrderDraftResponse(
+                order.getId(),
+                pharmacy.getId(),
+                pharmacy.getName(),
+                pharmacy.getLatitude(),
+                pharmacy.getLongitude(),
+                items
+        );
+    }
+    private OfferedItemResponse toOfferedItemResponse(OrderItem item) {
+        return new OfferedItemResponse(
+                item.getId(),
+                item.getProduct().getId(),
+                item.getProduct().getName()
+        );
+    }
+
 }
