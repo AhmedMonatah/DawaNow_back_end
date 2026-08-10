@@ -14,7 +14,7 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface MasterOrderMapper {
 
-    @Mapping(target = "requestId", source = "request.id")
+    @Mapping(target = "requestId", source = "masterOrder.request.id")
     @Mapping(target = "orderResponses", source = "orderResponses")
     MasterOrderResponse toResponse(
             MasterOrder masterOrder,

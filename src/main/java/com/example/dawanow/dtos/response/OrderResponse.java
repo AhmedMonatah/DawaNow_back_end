@@ -26,7 +26,6 @@ public record OrderResponse(
         String pharmacistName,
         Long offerId,
         BigDecimal subTotal,
-        BigDecimal deliveryFee,
         BigDecimal total,
         Double deliveryLatitude,
         Double deliveryLongitude,

@@ -1,6 +1,5 @@
 package com.example.dawanow.service;
 
-import com.example.dawanow.dtos.request.CreateOrderRequest;
 import com.example.dawanow.dtos.response.*;
 import com.example.dawanow.entity.*;
 import com.example.dawanow.exception.ResourceNotFoundException;
@@ -8,10 +7,6 @@ import com.example.dawanow.mapper.MasterOrderMapper;
 import com.example.dawanow.mapper.OrderMapper;
 import com.example.dawanow.repo.*;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -39,38 +34,12 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final ProductRepository productRepository;
-    private final PharmacyOfferRepository pharmacyOfferRepository;
     private final PharmacyRepository pharmacyRepository;
     private final CurrentUserProvider currentUserProvider;
     private final OrderMapper orderMapper;
     private final MasterOrderRepository masterOrderRepository;
     private final MasterOrderMapper masterOrderMapper;
 
-
-    public OrderResponse createOrder(PharmacyOffer offer) {
-
-        if (orderRepository.existsByOfferId(offer.getId())) {
-            throw new IllegalArgumentException("An order already exists for this offer");
-        }
-
-        List<PharmacyOfferItem> acceptedItems = offer.getItems();
-
-        if (acceptedItems.isEmpty()) {
-            throw new IllegalArgumentException("The accepted offer does not contain any accepted items");
-        }
-        Order order = new Order();
-        order.setUser(offer.getRequest().getCustomer());
-        order.setPharmacy(offer.getPharmacy());
-        order.setPharmacist(offer.getPharmacist());
-        order.setOffer(offer);
-        order.setDeliveryLatitude(offer.getRequest().getDeliveryLatitude());
-        order.setDeliveryLongitude(offer.getRequest().getDeliveryLongitude());
-        order.setDate(LocalDateTime.now());
-        order.setDeliveryAddress(offer.getRequest().getDeliveryAddress());
-        order.setTotalPrice(offer.getTotalPrice());
-
-        return orderMapper.toResponse(orderRepository.save(order));
-    }
 
     @Transactional(readOnly = true)
     public PaginatedResponse<MasterOrderResponse> getCurrentCustomerMasterOrders(
@@ -114,46 +83,6 @@ public class OrderService {
                 });
 
         return PaginatedResponse.from(responsePage);
-    }
-
-    @Transactional(readOnly = true)
-    public PaginatedResponse<OrderGroupResponse> getCurrentCustomerOrders(String lang, Pageable pageable) {
-        Customer currentCustomer = requireCurrentCustomer();
-        Long userId = currentCustomer.getId();
-        String language = normalizeLanguage(lang);
-
-        List<Long> requestIds = orderRepository.findRequestIdsByUserId(userId, pageable);
-        if (requestIds.isEmpty()) {
-            return PaginatedResponse.empty(pageable);
-        }
-
-        long totalElements = orderRepository.countDistinctRequestIdsByUserId(userId);
-
-        List<Order> orders = orderRepository.findByUserIdAndRequestIdIn(userId, requestIds);
-        Map<Long, List<OrderItemResponse>> itemsByOrderId = resolveItems(orders, language);
-
-        Map<Long, List<OrderResponse>> grouped = new LinkedHashMap<>();
-        for (Long requestId : requestIds) {
-            grouped.put(requestId, new ArrayList<>());
-        }
-        for (Order order : orders) {
-            grouped.get(order.getRequest().getId()).add(toResponse(order, itemsByOrderId));
-        }
-
-        List<OrderGroupResponse> content = grouped.entrySet().stream()
-                .map(e -> new OrderGroupResponse(e.getKey(), e.getValue()))
-                .toList();
-
-        int totalPages = (int) Math.ceil((double) totalElements / pageable.getPageSize());
-
-        return new PaginatedResponse<>(
-                content,
-                pageable.getPageNumber(),
-                pageable.getPageSize(),
-                totalElements,
-                totalPages,
-                pageable.getPageNumber() >= totalPages - 1
-        );
     }
 
     @Transactional(readOnly = true)
@@ -251,17 +180,6 @@ public class OrderService {
                 LinkedHashMap::new,
                 Collectors.toList()
         ));
-    }
-
-
-    private void validateOfferItem(PharmacyOfferItem offerItem) {
-        if (offerItem.getRequestItem().getQuantity() == null || offerItem.getRequestItem().getQuantity() <= 0) {
-            throw new IllegalArgumentException("Requested quantity must be positive");
-        }
-        if (offerItem.getRequestItem().getProduct().getPrice() == null
-                || offerItem.getRequestItem().getProduct().getPrice().signum() <= 0) {
-            throw new IllegalArgumentException("Product price must be positive");
-        }
     }
 
     private boolean isApplicationAdmin(User user) {

@@ -16,6 +16,7 @@ public record MasterOrderResponse(
         PaymentMethod paymentMethod,
         PaymentStatus paymentStatus,
         FulfillmentMethod fulfillmentMethod,
+        BigDecimal deliveryFee,
         BigDecimal totalPrice,
         OrderStatus orderStatus,
         LocalDateTime paymentExpiresAt,
