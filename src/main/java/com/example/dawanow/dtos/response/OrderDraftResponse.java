@@ -8,6 +8,6 @@ public record OrderDraftResponse(
         String pharmacyName,
         Double latitude,
         Double longitude,
-        List<OfferedItemResponse> items
+        List<OrderItemResponse> items
 ) {
 }

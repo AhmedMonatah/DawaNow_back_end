@@ -1,6 +1,7 @@
 package com.example.dawanow.mapper;
 
 import com.example.dawanow.dtos.response.MasterOrderResponse;
+import com.example.dawanow.dtos.response.OrderDraftResponse;
 import com.example.dawanow.dtos.response.OrderResponse;
 import com.example.dawanow.entity.MasterOrder;
 import com.example.dawanow.entity.Order;
@@ -18,6 +19,6 @@ public interface MasterOrderMapper {
     @Mapping(target = "orderResponses", source = "orderResponses")
     MasterOrderResponse toResponse(
             MasterOrder masterOrder,
-            List<OrderResponse> orderResponses
+            List<OrderDraftResponse> orderResponses
     );
 }

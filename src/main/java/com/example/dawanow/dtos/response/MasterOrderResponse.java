@@ -12,7 +12,7 @@ import java.util.List;
 public record MasterOrderResponse(
         Long id,
         Long requestId,
-        List<OrderResponse> orderResponses,
+        List<OrderDraftResponse> orderResponses,
         PaymentMethod paymentMethod,
         PaymentStatus paymentStatus,
         FulfillmentMethod fulfillmentMethod,
