@@ -28,6 +28,8 @@ public class OrderService {
     private static final String DEFAULT_LANG = "en";
     private static final String ARABIC = "ar";
 
+    private static final List<OrderStatus> HIDDEN_STATUSES = List.of(OrderStatus.PENDING, OrderStatus.CANCELLED);
+
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final ProductRepository productRepository;
@@ -39,7 +41,7 @@ public class OrderService {
 
 
     @Transactional(readOnly = true)
-    public PaginatedResponse<OrderResponse> getPharmacyOrders(Long pharmacyId, String lang, Pageable pageable) {
+    public PaginatedResponse<OrderResponse> getPharmacyOrders(Long pharmacyId, String lang, OrderStatus status, Pageable pageable) {
         Pharmacy pharmacy = pharmacyRepository.findById(pharmacyId)
                 .orElseThrow(() -> new ResourceNotFoundException("Pharmacy not found"));
         User currentUser = currentUserProvider.get();
@@ -51,21 +53,25 @@ public class OrderService {
             );
         }
 
-        Page<Order> orders = orderRepository.findByPharmacyId(pharmacyId, pageable);
+        Page<Order> orders = (status == null)
+                ? orderRepository.findByPharmacyIdAndStatusNotIn(pharmacyId, HIDDEN_STATUSES, pageable)
+                : orderRepository.findByPharmacyIdAndStatus(pharmacyId, status, pageable);
         Map<Long, List<OrderItemResponse>> itemsByOrderId = resolveItems(orders.getContent(), language);
 
         return PaginatedResponse.from(orders.map(order -> toResponse(order, itemsByOrderId)));
     }
 
     @Transactional(readOnly = true)
-    public PaginatedResponse<OrderResponse> getAllOrders(String lang, Pageable pageable) {
+    public PaginatedResponse<OrderResponse> getAllOrders(String lang, OrderStatus status, Pageable pageable) {
         User currentUser = currentUserProvider.get();
         if (!isApplicationAdmin(currentUser)) {
             throw new AccessDeniedException("Only system administrators can view all orders");
         }
         String language = normalizeLanguage(lang);
 
-        Page<Order> orders = orderRepository.findAll(pageable);
+        Page<Order> orders = (status == null)
+                ? orderRepository.findByStatusNotIn(HIDDEN_STATUSES, pageable)
+                : orderRepository.findByStatus(status, pageable);
         Map<Long, List<OrderItemResponse>> itemsByOrderId = resolveItems(orders.getContent(), language);
 
         return PaginatedResponse.from(orders.map(order -> toResponse(order, itemsByOrderId)));
@@ -92,6 +98,61 @@ public class OrderService {
 
         Map<Long, List<OrderItemResponse>> itemsByOrderId = resolveItems(List.of(order), language);
         return toResponse(order, itemsByOrderId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderDraftResponse> getOrdersByMasterId(Long masterId, String lang) {
+        String language = normalizeLanguage(lang);
+        List<Order> orders = orderRepository.findByMasterOrderId(masterId);
+        if (orders.isEmpty()) {
+            throw new ResourceNotFoundException("Master order not found");
+        }
+        requireOwnerOrAdmin(orders);
+        return toOrderDraftResponses(orders, language);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, List<OrderDraftResponse>> getOrdersByMasterIds(List<Long> masterIds, String lang) {
+        String language = normalizeLanguage(lang);
+        if (masterIds == null || masterIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Order> orders = orderRepository.findByMasterOrderIdIn(masterIds);
+        if (orders.isEmpty()) {
+            return Map.of();
+        }
+        requireOwnerOrAdmin(orders);
+
+        Map<Long, List<Order>> ordersByMasterId = orders.stream()
+                .collect(Collectors.groupingBy(
+                        order -> order.getMasterOrder().getId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+
+        Map<Long, List<OrderDraftResponse>> draftsByMasterId = new LinkedHashMap<>();
+        ordersByMasterId.forEach((masterOrderId, masterOrders) ->
+                draftsByMasterId.put(masterOrderId, toOrderDraftResponses(masterOrders, language)));
+        return draftsByMasterId;
+    }
+
+    private List<OrderDraftResponse> toOrderDraftResponses(List<Order> orders, String language) {
+        Map<Long, List<OrderItemResponse>> itemsByOrderId = resolveItems(orders, language);
+        return orders.stream()
+                .map(order -> toOrderDraftResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of())))
+                .sorted(Comparator.comparing(OrderDraftResponse::pharmacyId))
+                .toList();
+    }
+
+    private OrderDraftResponse toOrderDraftResponse(Order order, List<OrderItemResponse> items) {
+        Pharmacy pharmacy = order.getPharmacy();
+        return new OrderDraftResponse(
+                order.getId(),
+                pharmacy.getId(),
+                pharmacy.getName(),
+                pharmacy.getLatitude(),
+                pharmacy.getLongitude(),
+                items
+        );
     }
 
 
@@ -146,6 +207,19 @@ public class OrderService {
         }
 
         return pharmacy.getId().equals(pharmacist.getPharmacy().getId());
+    }
+
+    private void requireOwnerOrAdmin(List<Order> orders) {
+        User currentUser = currentUserProvider.get();
+        if (isApplicationAdmin(currentUser)) {
+            return;
+        }
+        Long currentUserId = currentUser.getId();
+        boolean allOwned = orders.stream()
+                .allMatch(order -> order.getUser().getId().equals(currentUserId));
+        if (!allOwned) {
+            throw new AccessDeniedException("You are not allowed to view these orders");
+        }
     }
 
     private Customer requireCurrentCustomer() {

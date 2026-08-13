@@ -25,7 +25,7 @@ public interface PharmacyAssignmentRepository extends JpaRepository<PharmacyAssi
 
     Optional<PharmacyAssignment> findByPharmacyIdAndMedicineRequestId(Long pharmacyId, Long medicineRequestId);
 
-    List<PharmacyAssignment> findByMedicineRequest_IdIn(List<Long> requestIds);
+    List<PharmacyAssignment> findByMedicineRequest_IdInAndStatus(List<Long> medicineRequestIds, AssignmentStatus status);
 
     long countByPharmacyIdAndAssignedAtBetween(Long pharmacyId, LocalDateTime start, LocalDateTime end);
 }

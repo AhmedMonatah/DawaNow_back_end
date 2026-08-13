@@ -176,15 +176,13 @@ public class PaymentService {
         order.setPaymentIntentId(paymentIntent.getId());
         order.setPaymentMethod(PaymentMethod.CARD);
         order.setPaidAt(LocalDateTime.now());
-        order.setOrderStatus(OrderStatus.PREPARING);
+        order.applyOrderStatus(OrderStatus.PREPARING);
         List<Order> orderList = order.getOrders();
         orderList.forEach(subOrder -> {
-            subOrder.setStatus(OrderStatus.PREPARING);
             notificationService.sendToPharmacy(
                     notificationFactory.orderCreated(subOrder),
                     subOrder.getPharmacy().getId()
             );});
-        order.getRequest().setStatus(RequestStatus.COMPLETED);
         masterOrderRepository.save(order);
         log.info("Order {} marked PAID via webhook {}", order.getId(), event.getId());
     }

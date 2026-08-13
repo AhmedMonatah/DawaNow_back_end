@@ -71,4 +71,9 @@ public class MasterOrder {
         order.setMasterOrder(this);
     }
 
+    public void applyOrderStatus(OrderStatus status) {
+        this.orderStatus = status;
+        this.orders.forEach(order -> order.setStatus(status));
+    }
+
 }

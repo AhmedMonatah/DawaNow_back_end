@@ -14,7 +14,7 @@ import java.util.List;
 @Component
 public class OrderExpirationScheduler {
 
-    MasterOrderRepository masterOrderRepository;
+    private final MasterOrderRepository masterOrderRepository;
 
     public OrderExpirationScheduler(MasterOrderRepository masterOrderRepository) {
         this.masterOrderRepository = masterOrderRepository;
@@ -27,14 +27,11 @@ public class OrderExpirationScheduler {
         List<MasterOrder> expiredOrders =
                 masterOrderRepository.findExpiredPaymentOrders(
                         OrderStatus.PENDING_PAYMENT,
-                        PaymentStatus.PENDING,
                         LocalDateTime.now()
                 );
 
         for (MasterOrder order : expiredOrders) {
-            order.setOrderStatus(OrderStatus.CANCELLED);
-            order.getOrders().forEach(o -> o.setStatus(OrderStatus.CANCELLED));
-
+            order.applyOrderStatus(OrderStatus.CANCELLED);
             order.setPaymentStatus(PaymentStatus.EXPIRED);
         }
     }
