@@ -98,6 +98,18 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     );
 
     @Query("""
+            SELECT COALESCE(MAX(o.totalPrice), 0)
+            FROM Order o
+            WHERE o.pharmacy.id = :pharmacyId
+              AND o.date BETWEEN :start AND :end
+            """)
+    BigDecimal findMaximumTotalPriceByPharmacyIdAndDateBetween(
+            @Param("pharmacyId") Long pharmacyId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
             SELECT oi.product.id AS productId,
                    oi.product.name AS productName,
                    oi.product.imageUrl AS imageUrl,
