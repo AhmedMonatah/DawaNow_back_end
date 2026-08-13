@@ -491,8 +491,9 @@ public class AiChatPromptFactory {
 
                 Rules:
                 - Use ONLY the numbers provided. Never invent or extrapolate figures.
-                - Maximum 120 words: 2-3 sentences on overall performance, then at most 3 bullet
-                  insights (best seller, notable ratio of offers to requests, anything actionable).
+                - Do not simply restate every dashboard number in order.
+                - Maximum 100 words: one short overview, then at most 3 actionable bullets.
+                - Emphasize request coverage (offers versus requests), order value, and the best seller.
                 - Markdown allowed (**bold** the key numbers). Plain text, no JSON, no headings.
                 - Currency is EGP.
                 """.formatted(target);
