@@ -266,5 +266,83 @@ public class PharmacistController {
         );
     }
 
+    @PatchMapping("/orders/{orderId}/out-for-delivery")
+    @PreAuthorize("hasRole('PHARMACIST')")
+    @Operation(
+            summary = "Mark pharmacy order as out for delivery",
+            description = "Marks a delivery order (fulfillment method DELIVERY) as out for delivery. The master order is promoted when all of its orders are out for delivery.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Order status updated successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Order cannot be marked as out for delivery in its current state or is a pickup order"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "The authenticated pharmacist is not allowed to update this order"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Order not found"
+            )
+    })
+    public ResponseEntity<ApiResponse<Void>> setOrderOutForDelivery(
+            @PathVariable Long orderId
+    ) throws AccessDeniedException {
+        pharmacistService.setOrderOutForDelivery(orderId);
+        return ResponseEntity.ok(
+                ApiResponse.success("Order marked as out for delivery")
+        );
+    }
+
+    @PatchMapping("/orders/{orderId}/delivered")
+    @PreAuthorize("hasRole('PHARMACIST')")
+    @Operation(
+            summary = "Mark pharmacy order as delivered",
+            description = "Marks a delivery order as delivered (from OUT_FOR_DELIVERY) or a pickup order as collected (from READY_FOR_PICKUP). The master order is promoted when all of its orders are delivered.",
+            security = @SecurityRequirement(name = "basicAuth")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Order status updated successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Order cannot be marked as delivered in its current state"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Authentication is required"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "The authenticated pharmacist is not allowed to update this order"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Order not found"
+            )
+    })
+    public ResponseEntity<ApiResponse<Void>> setOrderDelivered(
+            @PathVariable Long orderId
+    ) throws AccessDeniedException {
+        pharmacistService.setOrderDelivered(orderId);
+        return ResponseEntity.ok(
+                ApiResponse.success("Order marked as delivered")
+        );
+    }
+
 }
 

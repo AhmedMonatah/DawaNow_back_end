@@ -2,6 +2,7 @@ package com.example.dawanow.controller;
 
 import com.example.dawanow.dtos.request.CreateOrderRequest;
 import com.example.dawanow.dtos.response.*;
+import com.example.dawanow.entity.OrderStatus;
 import com.example.dawanow.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -81,9 +82,11 @@ public class OrderController {
             @PathVariable Long pharmacyId,
             @Parameter(description = "Response language: en or ar", example = "en")
             @RequestParam(defaultValue = "en") String lang,
+            @Parameter(description = "Filter by order status. Default hides PENDING (awaiting payment) and CANCELLED unless chosen.", example = "PREPARING")
+            @RequestParam(required = false) OrderStatus status,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Pharmacy orders fetched", orderService.getPharmacyOrders(pharmacyId, lang, pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Pharmacy orders fetched", orderService.getPharmacyOrders(pharmacyId, lang, status, pageable)));
     }
 
     @GetMapping("/all")
@@ -111,9 +114,11 @@ public class OrderController {
     public ResponseEntity<ApiResponse<PaginatedResponse<OrderResponse>>> getAllOrders(
             @Parameter(description = "Response language: en or ar", example = "en")
             @RequestParam(defaultValue = "en") String lang,
+            @Parameter(description = "Filter by order status. Default hides PENDING (awaiting payment) and CANCELLED unless chosen.", example = "PREPARING")
+            @RequestParam(required = false) OrderStatus status,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Orders fetched", orderService.getAllOrders(lang, pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Orders fetched", orderService.getAllOrders(lang, status, pageable)));
     }
 
     @GetMapping("/{id}")

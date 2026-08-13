@@ -105,9 +105,11 @@ public class MasterOrderController {
     public ResponseEntity<ApiResponse<PaginatedResponse<MasterOrderResponse>>> getCurrentCustomerOrders(
             @Parameter(description = "Response language: en or ar", example = "en")
             @RequestParam(defaultValue = "en") String lang,
+            @Parameter(description = "Filter by master order status", example = "PREPARING")
+            @RequestParam(required = false) com.example.dawanow.entity.OrderStatus status,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Master Orders fetched", orderService.getCurrentCustomerMasterOrders(lang, pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Master Orders fetched", orderService.getCurrentCustomerMasterOrders(lang, status, pageable)));
     }
 
 

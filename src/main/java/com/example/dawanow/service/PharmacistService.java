@@ -49,13 +49,71 @@ public class PharmacistService {
             throw new AccessDeniedException("You are not allowed to update this order");
         }
 
+        OrderStatus target = order.getMasterOrder().getFulfillmentMethod() == FulfillmentMethod.PICKUP
+                ? OrderStatus.READY_FOR_PICKUP
+                : OrderStatus.READY_FOR_DELIVERY;
+
+        if (order.getStatus() == target) {
+            return;
+        }
         if (order.getStatus() != OrderStatus.PREPARING) {
             throw new IllegalStateException("Only preparing orders can be marked as ready");
         }
-        if(order.getMasterOrder().getFulfillmentMethod() == FulfillmentMethod.PICKUP){
-            order.setStatus(OrderStatus.READY_FOR_PICKUP);
+        order.setStatus(target);
+
+        applicationEventPublisher.publishEvent(
+                new SubOrderStatusChangedEvent(
+                        order.getId(),
+                        order.getMasterOrder().getId()
+                )
+        );
+    }
+
+    @Transactional
+    public void setOrderOutForDelivery(Long id) throws AccessDeniedException {
+        Order order = orderRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        Pharmacist pharmacist = currentPharmacistProvider.get();
+
+        if (!order.getPharmacy().getId().equals(pharmacist.getPharmacy().getId())) {
+            throw new AccessDeniedException("You are not allowed to update this order");
         }
-        else   order.setStatus(OrderStatus.READY_FOR_DELIVERY);
+
+        if (order.getMasterOrder().getFulfillmentMethod() != FulfillmentMethod.DELIVERY) {
+            throw new IllegalStateException("Only delivery orders can be marked as out for delivery");
+        }
+
+        if (order.getStatus() == OrderStatus.OUT_FOR_DELIVERY) {
+            return;
+        }
+        if (order.getStatus() != OrderStatus.READY_FOR_DELIVERY) {
+            throw new IllegalStateException("Only ready-for-delivery orders can be marked as out for delivery");
+        }
+        order.setStatus(OrderStatus.OUT_FOR_DELIVERY);
+
+        applicationEventPublisher.publishEvent(
+                new SubOrderStatusChangedEvent(
+                        order.getId(),
+                        order.getMasterOrder().getId()
+                )
+        );
+    }
+
+    @Transactional
+    public void setOrderDelivered(Long id) throws AccessDeniedException {
+        Order order = orderRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        Pharmacist pharmacist = currentPharmacistProvider.get();
+
+        if (!order.getPharmacy().getId().equals(pharmacist.getPharmacy().getId())) {
+            throw new AccessDeniedException("You are not allowed to update this order");
+        }
+
+        if (order.getStatus() == OrderStatus.DELIVERED) {
+            return;
+        }
+        if (order.getStatus() != OrderStatus.OUT_FOR_DELIVERY && order.getStatus() != OrderStatus.READY_FOR_PICKUP) {
+            throw new IllegalStateException("Only out-for-delivery or ready-for-pickup orders can be marked as delivered");
+        }
+        order.setStatus(OrderStatus.DELIVERED);
 
         applicationEventPublisher.publishEvent(
                 new SubOrderStatusChangedEvent(

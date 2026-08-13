@@ -116,12 +116,10 @@ public class MedicineRequestService {
             medicineRequest.getItems().add(requestItem);
         }
 
-        medicineRequest.setStatus(RequestStatus.PENDING);
+        medicineRequest.setStatus(RequestStatus.SEARCHING);
         medicineRequestRepository.save(medicineRequest);
 
         assignmentService.assignNearbyPharmacies(medicineRequest);
-
-//        medicineRequest.setStatus(RequestStatus.SEARCHING);
 
         cartService.clearCart();
 
@@ -167,17 +165,27 @@ public class MedicineRequestService {
     @Transactional
     @Scheduled(fixedRate = 60000)
     public void expireRequests() {
-        List<MedicineRequest> medicineRequestList =  medicineRequestRepository.findByStatusAndExpiresAtBefore(RequestStatus.PENDING, LocalDateTime.now());
+        List<MedicineRequest> medicineRequestList =  medicineRequestRepository.findByStatusAndExpiresAtBefore(RequestStatus.SEARCHING, LocalDateTime.now());
         for (MedicineRequest medicineRequest : medicineRequestList) {
             medicineRequest.setStatus(RequestStatus.EXPIRED);
         }
         List<Long> requestIds = medicineRequestList.stream()
                 .map(MedicineRequest::getId)
                 .toList();
+        expirePendingAssignments(requestIds);
+    }
+
+    /**
+     * Expires the still-pending pharmacy assignments for the given requests.
+     * Assignments with other statuses (e.g. OFFER_CREATED) are left untouched.
+     */
+    @Transactional
+    public void expirePendingAssignments(List<Long> requestIds) {
         if (requestIds.isEmpty()) {
             return;
         }
-        List<PharmacyAssignment> assignments = pharmacyAssignmentRepository.findByMedicineRequest_IdIn(requestIds);
+        List<PharmacyAssignment> assignments =
+                pharmacyAssignmentRepository.findByMedicineRequest_IdInAndStatus(requestIds, AssignmentStatus.PENDING);
         for (PharmacyAssignment assignment : assignments) {
             assignment.setStatus(AssignmentStatus.EXPIRED);
         }

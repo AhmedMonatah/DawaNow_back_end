@@ -24,12 +24,10 @@ public interface MasterOrderRepository extends JpaRepository<MasterOrder, Long> 
     SELECT o
     FROM MasterOrder o
     WHERE o.orderStatus = :status
-      AND o.paymentStatus = :paymentStatus
       AND o.paymentExpiresAt <= :now
 """)
     List<MasterOrder> findExpiredPaymentOrders(
             @Param("status") OrderStatus status,
-            @Param("paymentStatus") PaymentStatus paymentStatus,
             @Param("now") LocalDateTime now
     );
 
@@ -39,6 +37,7 @@ public interface MasterOrderRepository extends JpaRepository<MasterOrder, Long> 
         JOIN FETCH o.user
         JOIN FETCH o.request
         WHERE o.user.id = :userId
+        ORDER BY o.id DESC
         """,
             countQuery = """
         SELECT COUNT(o) FROM MasterOrder o
@@ -46,4 +45,25 @@ public interface MasterOrderRepository extends JpaRepository<MasterOrder, Long> 
         """
     )
     Page<MasterOrder> findByUserId(@Param("userId") Long userId, Pageable pageable);
+
+    @Query(
+            value = """
+        SELECT DISTINCT o FROM MasterOrder o
+        JOIN FETCH o.user
+        JOIN FETCH o.request
+        WHERE o.user.id = :userId
+          AND o.orderStatus = :status
+        ORDER BY o.id DESC
+        """,
+            countQuery = """
+        SELECT COUNT(o) FROM MasterOrder o
+        WHERE o.user.id = :userId
+          AND o.orderStatus = :status
+        """
+    )
+    Page<MasterOrder> findByUserIdAndStatus(
+            @Param("userId") Long userId,
+            @Param("status") OrderStatus status,
+            Pageable pageable
+    );
 }
