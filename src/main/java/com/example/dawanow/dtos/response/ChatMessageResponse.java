@@ -14,6 +14,7 @@ public record ChatMessageResponse(
         List<ChatCategoryResponse> categories,
         List<PharmacistRankingResponse> pharmacistRankings,
         String disclaimer,
-        ChatActionResponse action
+        ChatActionResponse action,
+        ReminderResponse reminder
 ) {
 }

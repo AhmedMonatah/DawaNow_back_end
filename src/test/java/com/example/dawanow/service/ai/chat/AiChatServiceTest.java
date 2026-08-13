@@ -29,7 +29,6 @@ import com.example.dawanow.entity.ChatMessageRole;
 import com.example.dawanow.entity.ChatPerformanceDirection;
 import com.example.dawanow.entity.ChatPerformanceMetric;
 import com.example.dawanow.entity.DashboardPeriod;
-import com.example.dawanow.entity.MedicationReminder;
 import com.example.dawanow.entity.Pharmacist;
 import com.example.dawanow.entity.User;
 import com.example.dawanow.entity.UserRole;
@@ -91,8 +90,6 @@ class AiChatServiceTest {
     @Mock
     private CartAgentService cartAgentService;
     @Mock
-    private MedicationReminderService reminderService;
-    @Mock
     private CategoryRepository categoryRepository;
     @Mock
     private CategoryTranslationRepository categoryTranslationRepository;
@@ -128,7 +125,7 @@ class AiChatServiceTest {
                 matchingService,
                 cartActionService,
                 cartAgentService,
-                reminderService,
+                new ReminderTimeResolver(),
                 categoryRepository,
                 categoryTranslationRepository,
                 pharmacistPerformanceService,
@@ -763,30 +760,29 @@ class AiChatServiceTest {
     }
 
     @Test
-    void setReminderConfirmsExactTimesAndDuration() {
+    void setReminderReturnsStructuredTimesForTheClientToSchedule() {
         stubCurrentUser(customer);
         stubConversation();
         stubMessageSaves();
         var spec = new AiChatModelClient.ReminderSpec("Concor", 2, List.of(), null);
-        MedicationReminder reminder = new MedicationReminder();
-        reminder.setMedicineName("Concor");
-        reminder.setTimesCsv("09:00,21:00");
-        reminder.setDurationDays(7);
         when(modelClient.route(anyString(), any(), anyInt()))
                 .thenReturn(new RouterResult(ChatIntent.SET_REMINDER, "", null,
                         List.of(), List.of(), null, spec));
-        when(reminderService.create(customer, spec)).thenReturn(reminder);
-        when(reminderService.times(reminder)).thenReturn(List.of("09:00", "21:00"));
 
         ChatMessageResponse response = service.sendMessage(
                 new ChatMessageRequest("remind me to take concor twice a day"));
 
         assertThat(response.intent()).isEqualTo("SET_REMINDER");
         assertThat(response.answer()).contains("Concor").contains("09:00").contains("7");
+        assertThat(response.reminder().medicineName()).isEqualTo("Concor");
+        assertThat(response.reminder().times()).containsExactly("09:00", "21:00");
+        assertThat(response.reminder().durationDays()).isEqualTo(7);
+        // The backend never persists or schedules — nothing to mutate here.
+        assertThat(response.action()).isNull();
     }
 
     @Test
-    void setReminderWithoutMedicineAsksForIt() {
+    void setReminderWithoutMedicineAsksForItAndReturnsNoReminderData() {
         stubCurrentUser(customer);
         stubConversation();
         stubMessageSaves();
@@ -797,26 +793,7 @@ class AiChatServiceTest {
         ChatMessageResponse response = service.sendMessage(new ChatMessageRequest("remind me"));
 
         assertThat(response.answer()).contains("Which medicine");
-        verify(reminderService, never()).create(any(), any());
-    }
-
-    @Test
-    void deleteReminderReportsWhatWasCancelled() {
-        stubCurrentUser(customer);
-        stubConversation();
-        stubMessageSaves();
-        var spec = new AiChatModelClient.ReminderSpec("concor", null, List.of(), null);
-        when(modelClient.route(anyString(), any(), anyInt()))
-                .thenReturn(new RouterResult(ChatIntent.DELETE_REMINDER, "", null,
-                        List.of(), List.of(), null, spec));
-        when(reminderService.deactivateByName(customer, "concor"))
-                .thenReturn(new MedicationReminderService.DeletionResult(
-                        MedicationReminderService.DeletionStatus.DELETED, List.of("Concor")));
-
-        ChatMessageResponse response = service.sendMessage(new ChatMessageRequest("stop the concor reminder"));
-
-        assertThat(response.intent()).isEqualTo("DELETE_REMINDER");
-        assertThat(response.answer()).contains("Concor");
+        assertThat(response.reminder()).isNull();
     }
 
     @Test
