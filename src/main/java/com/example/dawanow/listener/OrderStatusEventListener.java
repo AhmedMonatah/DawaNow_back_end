@@ -11,6 +11,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Component
 @RequiredArgsConstructor
 public class OrderStatusEventListener {
@@ -37,6 +39,24 @@ public class OrderStatusEventListener {
                             ? OrderStatus.READY_FOR_PICKUP
                             : OrderStatus.READY_FOR_DELIVERY
             );
+            return;
         }
+
+        boolean allOutForDelivery = allHaveStatus(masterOrder, OrderStatus.OUT_FOR_DELIVERY);
+        if (allOutForDelivery) {
+            masterOrder.setOrderStatus(OrderStatus.OUT_FOR_DELIVERY);
+            return;
+        }
+
+        boolean allDelivered = allHaveStatus(masterOrder, OrderStatus.DELIVERED);
+        if (allDelivered) {
+            masterOrder.setOrderStatus(OrderStatus.DELIVERED);
+        }
+    }
+
+    private boolean allHaveStatus(MasterOrder masterOrder, OrderStatus... statuses) {
+        List<OrderStatus> accepted = List.of(statuses);
+        return masterOrder.getOrders().stream()
+                .allMatch(order -> accepted.contains(order.getStatus()));
     }
 }

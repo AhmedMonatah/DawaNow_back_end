@@ -44,6 +44,7 @@ public class MedicineRequestConfirmationService {
     private final RequestResultSseService requestResultSseService;
     private final ProductRepository productRepository;
     private final OrderItemRepository orderItemRepository;
+    private final MedicineRequestService medicineRequestService;
 
     @Transactional
     public ConfirmationResponse confirm(Long requestId, ConfirmSelectionRequest selection) {
@@ -116,6 +117,10 @@ public class MedicineRequestConfirmationService {
 
         masterOrderRepository.save(masterOrder);
 
+        medicineRequest.setStatus(RequestStatus.COMPLETED);
+
+        medicineRequestService.expirePendingAssignments(List.of(medicineRequest.getId()));
+
 //        orders.forEach(order -> notificationService.sendToPharmacy(
 //                notificationFactory.orderCreated(order),
 //                order.getId()
@@ -125,12 +130,12 @@ public class MedicineRequestConfirmationService {
 
 
 
-        List<OrderItemResponse> items = resolveItems(orders, DEFAULT_LANG).getOrDefault(masterOrder.getId(), List.of());
+        Map<Long, List<OrderItemResponse>> itemsByOrderId = resolveItems(orders, DEFAULT_LANG);
 
 
         List<OrderDraftResponse> orderDraftResponses = orders.stream()
                 .sorted(Comparator.comparing(order -> order.getPharmacy().getId()))
-                .map(order -> toOrderDraftResponse(order, items))
+                .map(order -> toOrderDraftResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of())))
                 .toList();
         return new ConfirmationResponse(medicineRequest.getId(), orderDraftResponses, masterOrder.getDeliveryFee(),masterOrder.getTotalPrice());
     }
@@ -154,11 +159,9 @@ public class MedicineRequestConfirmationService {
             masterOrder.setPaymentStatus(null);
             masterOrder.setPaymentIntentId(null);
             masterOrder.setPaidAt(null);
-            masterOrder.setOrderStatus(OrderStatus.PREPARING);
+            masterOrder.applyOrderStatus(OrderStatus.PREPARING);
             List<Order> orders = masterOrder.getOrders();
-            medicineRequest.setStatus(RequestStatus.COMPLETED);
             orders.forEach(order -> {
-                order.setStatus(OrderStatus.PREPARING);
                 notificationService.sendToPharmacy(
                         notificationFactory.orderCreated(order),
                         order.getPharmacy().getId()
@@ -176,8 +179,8 @@ public class MedicineRequestConfirmationService {
         if (!medicineRequest.getCustomer().getId().equals(customer.getId())) {
             throw new AccessDeniedException("You can only confirm your own medicine request");
         }
-        if (medicineRequest.getStatus() != RequestStatus.PENDING) {
-            throw new IllegalArgumentException("Only pending medicine requests can be confirmed");
+        if (medicineRequest.getStatus() != RequestStatus.SEARCHING) {
+            throw new IllegalArgumentException("Only searching medicine requests can be confirmed");
         }
     }
 

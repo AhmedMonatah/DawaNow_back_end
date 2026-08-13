@@ -80,10 +80,6 @@ public class PharmacyOfferService {
         offer.setPharmacist(pharmacist);
         offer.setDistanceKm(assignment.getDistanceKm());
 
-        if (medicineRequest.getStatus() == RequestStatus.SEARCHING) {
-            medicineRequest.setStatus(RequestStatus.OFFERS_READY);
-        }
-
 
         BigDecimal totalOfferPrice = BigDecimal.ZERO;
         for (CreateOfferItemRequest itemDto : request.items()) {
