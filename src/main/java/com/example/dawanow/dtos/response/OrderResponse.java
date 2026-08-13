@@ -1,5 +1,6 @@
 package com.example.dawanow.dtos.response;
 
+import com.example.dawanow.entity.FulfillmentMethod;
 import com.example.dawanow.entity.OrderStatus;
 import com.example.dawanow.entity.PaymentMethod;
 
@@ -29,6 +30,7 @@ public record OrderResponse(
         LocalDate createdAt,
         OrderStatus status,
         PaymentMethod paymentMethod,
+        FulfillmentMethod fulfillmentMethod,
         List<OrderItemResponse> items
 ) {
 }
