@@ -12,13 +12,20 @@ import com.example.dawanow.dtos.response.ChatHistoryMessageResponse;
 import com.example.dawanow.dtos.response.ChatHistoryResponse;
 import com.example.dawanow.dtos.response.ChatMessageResponse;
 import com.example.dawanow.dtos.response.EmergencyNumberResponse;
+import com.example.dawanow.dtos.response.InteractionWarningResponse;
+import com.example.dawanow.dtos.response.PharmacistPerformanceEntryResponse;
+import com.example.dawanow.dtos.response.PharmacistRankingResponse;
 import com.example.dawanow.dtos.response.ProductResponse;
+import com.example.dawanow.dtos.response.ReminderResponse;
 import com.example.dawanow.entity.Category;
 import com.example.dawanow.entity.ChatConversation;
 import com.example.dawanow.entity.ChatIntent;
 import com.example.dawanow.entity.ChatMessage;
 import com.example.dawanow.entity.ChatMessageRole;
 import com.example.dawanow.entity.ChatPerformanceDirection;
+import com.example.dawanow.entity.ChatPerformanceMetric;
+import com.example.dawanow.entity.DashboardPeriod;
+import com.example.dawanow.entity.Pharmacist;
 import com.example.dawanow.entity.User;
 import com.example.dawanow.entity.UserRole;
 import com.example.dawanow.exception.PrescriptionAiUnavailableException;
@@ -27,19 +34,12 @@ import com.example.dawanow.repo.CategoryRepository;
 import com.example.dawanow.repo.CategoryTranslationRepository;
 import com.example.dawanow.repo.ChatConversationRepository;
 import com.example.dawanow.repo.ChatMessageRepository;
+import com.example.dawanow.repo.PharmacistRepository;
 import com.example.dawanow.repo.ProductRepository;
 import com.example.dawanow.repo.ProductTranslationRepository;
 import com.example.dawanow.service.CurrentUserProvider;
 import com.example.dawanow.service.MedicineImageValidator;
 import com.example.dawanow.service.PrescriptionProductMatchingService;
-import com.example.dawanow.dtos.response.InteractionWarningResponse;
-import com.example.dawanow.dtos.response.PharmacistPerformanceEntryResponse;
-import com.example.dawanow.dtos.response.PharmacistRankingResponse;
-import com.example.dawanow.entity.MedicationReminder;
-import com.example.dawanow.entity.ChatPerformanceMetric;
-import com.example.dawanow.entity.DashboardPeriod;
-import com.example.dawanow.entity.Pharmacist;
-import com.example.dawanow.repo.PharmacistRepository;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.GatewayMessage;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.GroundedResult;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.ReminderSpec;
@@ -47,6 +47,13 @@ import com.example.dawanow.service.ai.chat.AiChatModelClient.RouterResult;
 import com.example.dawanow.service.ai.chat.ChatCartActionService.CartActionOutcome;
 import com.example.dawanow.service.ai.chat.PharmacistPerformanceService.PerformanceResult;
 import com.example.dawanow.service.ai.rag.CatalogRagService;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,13 +66,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Conversational AI assistant grounded in the Medsy product catalog.
@@ -101,8 +104,6 @@ public class AiChatService {
     /** Intents that mutate or navigate the shopping flow — customer accounts only. */
     private static final Set<ChatIntent> CART_INTENTS =
             Set.of(ChatIntent.ADD_TO_CART, ChatIntent.CREATE_REQUEST);
-    private static final Set<ChatIntent> REMINDER_INTENTS =
-            Set.of(ChatIntent.SET_REMINDER, ChatIntent.DELETE_REMINDER, ChatIntent.LIST_REMINDERS);
     /** How many interaction warnings a chat confirmation may carry before it gets noisy. */
     private static final int MAX_CHAT_WARNINGS = 2;
 
@@ -123,7 +124,7 @@ public class AiChatService {
     private final PrescriptionProductMatchingService matchingService;
     private final ChatCartActionService cartActionService;
     private final CartAgentService cartAgentService;
-    private final MedicationReminderService reminderService;
+    private final ReminderTimeResolver reminderTimeResolver;
     private final CategoryRepository categoryRepository;
     private final CategoryTranslationRepository categoryTranslationRepository;
     private final PharmacistPerformanceService pharmacistPerformanceService;
@@ -177,8 +178,8 @@ public class AiChatService {
             return respondWithCartAction(conversation, user, language, intent, router,
                     request.message());
         }
-        if (REMINDER_INTENTS.contains(intent)) {
-            return respondWithReminder(conversation, user, language, intent, router.reminder());
+        if (intent == ChatIntent.SET_REMINDER) {
+            return respondWithReminder(conversation, language, router.reminder());
         }
         if (LOOKUP_INTENTS.contains(intent)) {
             return respondFromCatalog(conversation, user, messages, language, intent,
@@ -529,43 +530,27 @@ public class AiChatService {
 
     private ChatMessageResponse respondWithReminder(
             ChatConversation conversation,
-            User user,
             String language,
-            ChatIntent intent,
             ReminderSpec spec
     ) {
-        String reply;
-        if (intent == ChatIntent.LIST_REMINDERS) {
-            reply = promptFactory.reminderListReply(language,
-                    reminderService.list(user).stream().map(this::reminderLine).toList());
-        } else if (spec == null || !StringUtils.hasText(spec.medicine())) {
-            reply = promptFactory.reminderMissingMedicineReply(language);
-            intent = ChatIntent.SET_REMINDER;
-        } else if (intent == ChatIntent.SET_REMINDER) {
-            MedicationReminder reminder = reminderService.create(user, spec);
-            reply = promptFactory.reminderSetReply(language, reminder.getMedicineName(),
-                    reminderService.times(reminder), reminder.getDurationDays());
-        } else {
-            MedicationReminderService.DeletionResult result =
-                    reminderService.deactivateByName(user, spec.medicine());
-            reply = switch (result.status()) {
-                case DELETED -> promptFactory.reminderDeletedReply(language,
-                        String.join(", ", result.names()));
-                case AMBIGUOUS -> promptFactory.reminderAmbiguousReply(language, result.names());
-                case NOT_FOUND -> promptFactory.reminderNotFoundReply(language);
-            };
+        if (spec == null || !StringUtils.hasText(spec.medicine())) {
+            String reply = promptFactory.reminderMissingMedicineReply(language);
+            ChatMessage saved = saveAssistantMessage(conversation, reply, ChatIntent.SET_REMINDER,
+                    List.of(), List.of(), List.of(), List.of());
+            return response(conversation, saved, reply, List.of(), List.of(), List.of(), List.of(),
+                    null, null);
         }
 
-        ChatMessage saved = saveAssistantMessage(conversation, reply, intent,
+        String medicineName = spec.medicine().trim();
+        List<String> times = reminderTimeResolver.resolveTimes(spec);
+        int durationDays = reminderTimeResolver.clampDuration(spec.durationDays());
+        String reply = promptFactory.reminderSetReply(language, medicineName, times, durationDays);
+
+        ChatMessage saved = saveAssistantMessage(conversation, reply, ChatIntent.SET_REMINDER,
                 List.of(), List.of(), List.of(), List.of());
         return response(conversation, saved, reply, List.of(), List.of(), List.of(), List.of(),
-                null, null);
-    }
-
-    private String reminderLine(MedicationReminder reminder) {
-        return "- **" + reminder.getMedicineName() + "** — "
-                + String.join(", ", reminderService.times(reminder))
-                + " (" + reminder.getDurationDays() + "d)";
+                List.of(), List.of(), null, null,
+                new ReminderResponse(medicineName, times, durationDays));
     }
 
     /**
@@ -605,13 +590,15 @@ public class AiChatService {
     private ChatCategoryResponse localizedCategory(Category category, String language) {
         String name = ARABIC.equals(language)
                 ? categoryTranslationRepository.findByCategoryIdAndLang(category.getId(), ARABIC)
-                        .map(translation -> translation.getName())
-                        .orElse(category.getName())
+                  .map(translation -> translation.getName())
+                  .orElse(category.getName())
                 : category.getName();
         return new ChatCategoryResponse(category.getId(), name);
     }
 
-    /** English category names fed into the router prompt as the valid vocabulary. */
+    /**
+     * English category names fed into the router prompt as the valid vocabulary.
+     */
     private List<String> storeCategoryNames() {
         return categoryRepository.findAll().stream()
                 .map(Category::getName)
@@ -730,8 +717,8 @@ public class AiChatService {
         List<ExtractedMedicine> medicines = extracted == null || extracted.medicines() == null
                 ? List.of()
                 : extracted.medicines().stream()
-                        .filter(medicine -> medicine != null && StringUtils.hasText(medicine.name()))
-                        .toList();
+                  .filter(medicine -> medicine != null && StringUtils.hasText(medicine.name()))
+                  .toList();
         if (!medicines.isEmpty()) {
             return medicines;
         }
@@ -921,8 +908,8 @@ public class AiChatService {
         message.setCategoryIds(categories.isEmpty()
                 ? null
                 : categories.stream()
-                        .map(category -> String.valueOf(category.id()))
-                        .collect(Collectors.joining(",")));
+                  .map(category -> String.valueOf(category.id()))
+                  .collect(Collectors.joining(",")));
         if (performanceMetric != null && performancePeriod != null && performancePharmacyId != null) {
             message.setPerformanceMetric(performanceMetric);
             message.setPerformancePeriod(performancePeriod);
@@ -1004,6 +991,24 @@ public class AiChatService {
             String disclaimer,
             ChatActionResponse action
     ) {
+        return response(conversation, message, reply, products, alternatives, doctorSpecializations,
+                emergencyNumbers, categories, pharmacistRankings, disclaimer, action, null);
+    }
+
+    private ChatMessageResponse response(
+            ChatConversation conversation,
+            ChatMessage message,
+            String reply,
+            List<ProductResponse> products,
+            List<ProductResponse> alternatives,
+            List<String> doctorSpecializations,
+            List<EmergencyNumberResponse> emergencyNumbers,
+            List<ChatCategoryResponse> categories,
+            List<PharmacistRankingResponse> pharmacistRankings,
+            String disclaimer,
+            ChatActionResponse action,
+            ReminderResponse reminder
+    ) {
         return new ChatMessageResponse(
                 conversation.getId(),
                 message.getId(),
@@ -1016,7 +1021,8 @@ public class AiChatService {
                 categories,
                 pharmacistRankings,
                 disclaimer,
-                action
+                action,
+                reminder
         );
     }
 

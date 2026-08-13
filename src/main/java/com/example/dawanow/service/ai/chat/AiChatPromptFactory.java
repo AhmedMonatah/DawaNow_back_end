@@ -62,7 +62,7 @@ public class AiChatPromptFactory {
             """ + SAFETY_RULES + """
 
             Classify the user's last message and return ONLY compact JSON in this exact shape:
-            {"intent":"GREETING|MEDICINE_REQUEST|SYMPTOM_ADVICE|DOCTOR_SPECIALIZATION|EMERGENCY|MEDICINE_USAGE|CATEGORY_BROWSE|ADD_TO_CART|CREATE_REQUEST|SET_REMINDER|DELETE_REMINDER|LIST_REMINDERS|PHARMACIST_PERFORMANCE|OTHER","reply":"","searchQuery":"","quantity":0,"reminderMedicine":"","reminderTimesPerDay":0,"reminderTimes":[],"reminderDurationDays":0,"doctorSpecializations":[],"emergencyServices":[],"categoryNames":[],"performanceMetric":"","performancePeriod":"","performanceDirection":""}
+            {"intent":"GREETING|MEDICINE_REQUEST|SYMPTOM_ADVICE|DOCTOR_SPECIALIZATION|EMERGENCY|MEDICINE_USAGE|CATEGORY_BROWSE|ADD_TO_CART|CREATE_REQUEST|SET_REMINDER|PHARMACIST_PERFORMANCE|OTHER","reply":"","searchQuery":"","quantity":0,"reminderMedicine":"","reminderTimesPerDay":0,"reminderTimes":[],"reminderDurationDays":0,"doctorSpecializations":[],"emergencyServices":[],"categoryNames":[],"performanceMetric":"","performancePeriod":"","performanceDirection":""}
             Use 0 or "" for any field that does not apply.
 
             STORE CATEGORIES (the only valid values for "categoryNames", copy them EXACTLY as written,
@@ -107,10 +107,9 @@ public class AiChatPromptFactory {
               "reminderMedicine", how many times per day in "reminderTimesPerDay" (0 if unstated), any
               clock times the user named in "reminderTimes" as 24-hour "HH:mm" strings ("9 صباحا" -> "09:00",
               "9 مساء" -> "21:00"), and the number of days in "reminderDurationDays" (0 if unstated).
-              Leave "reply" empty.
-            - DELETE_REMINDER: the user asks to cancel or stop a medication reminder ("الغي تذكير الكونكور",
-              "stop reminding me about X"). Put the medicine name in "reminderMedicine". Leave "reply" empty.
-            - LIST_REMINDERS: the user asks what reminders they have. Leave "reply" empty.
+              Leave "reply" empty. This only extracts the reminder — the app schedules and shows it, so
+              there is no "list my reminders" or "cancel reminder" intent; treat those as OTHER and tell
+              the user to check the reminders screen in the app.
             - PHARMACIST_PERFORMANCE: the user asks who among their pharmacy staff created the most or least
               offers, produced the most or least successful orders, or performed best/worst by those measures
               ("who made the most offers last week?", "least successful orders this month",
@@ -421,37 +420,6 @@ public class AiChatPromptFactory {
         return "ar".equals(language)
                 ? "تحب أفكرك بأنهي دواء؟ اكتبلي اسمه ومواعيده."
                 : "Which medicine should I remind you about? Tell me its name and times.";
-    }
-
-    public String reminderListReply(String language, List<String> lines) {
-        if (lines.isEmpty()) {
-            return "ar".equals(language)
-                    ? "مفيش تذكيرات أدوية مفعّلة عندك حاليًا."
-                    : "You have no active medication reminders right now.";
-        }
-        String body = String.join("\n", lines);
-        return "ar".equals(language)
-                ? "تذكيراتك المفعّلة:\n" + body
-                : "Your active reminders:\n" + body;
-    }
-
-    public String reminderDeletedReply(String language, String medicine) {
-        return "ar".equals(language)
-                ? "تمام، لغيت تذكير **" + medicine + "** ✅"
-                : "Done — cancelled the reminder for **" + medicine + "** ✅";
-    }
-
-    public String reminderAmbiguousReply(String language, List<String> names) {
-        String joined = String.join(", ", names);
-        return "ar".equals(language)
-                ? "عندك أكتر من تذكير قريب من الاسم ده: " + joined + ". تقصد أنهي واحد؟"
-                : "You have more than one reminder matching that name: " + joined + ". Which one?";
-    }
-
-    public String reminderNotFoundReply(String language) {
-        return "ar".equals(language)
-                ? "مش لاقي تذكير بالاسم ده. اكتب \"اعرض تذكيراتي\" لمراجعة تذكيراتك المفعّلة."
-                : "I couldn't find a reminder with that name. Say \"list my reminders\" to review them.";
     }
 
     /** Fallback when the router classifies CATEGORY_BROWSE but leaves the reply empty. */
