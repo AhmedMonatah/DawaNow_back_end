@@ -1,10 +1,8 @@
 package com.example.dawanow.controller;
 
 import com.example.dawanow.dtos.request.CreateOrderRequest;
-import com.example.dawanow.dtos.response.ApiResponse;
-import com.example.dawanow.dtos.response.OrderGroupResponse;
-import com.example.dawanow.dtos.response.OrderResponse;
-import com.example.dawanow.dtos.response.PaginatedResponse;
+import com.example.dawanow.dtos.response.*;
+import com.example.dawanow.entity.OrderStatus;
 import com.example.dawanow.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -46,35 +44,6 @@ public class OrderController {
 
     private final OrderService orderService;
 
-    @GetMapping
-    @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(
-            summary = "Get current customer orders",
-            description = "Customer only. Returns paginated list of orders placed by the currently authenticated customer.",
-            security = @SecurityRequirement(name = "basicAuth")
-    )
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200",
-                    useReturnTypeSchema = true,
-                    description = "Orders fetched successfully with pagination metadata"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "401",
-                    description = "Authentication is required"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "403",
-                    description = "Customer role is required"
-            )
-    })
-    public ResponseEntity<ApiResponse<PaginatedResponse<OrderGroupResponse>>> getCurrentCustomerOrders(
-            @Parameter(description = "Response language: en or ar", example = "en")
-            @RequestParam(defaultValue = "en") String lang,
-            @ParameterObject @PageableDefault(size = 20) Pageable pageable
-    ) {
-        return ResponseEntity.ok(ApiResponse.success("Orders fetched", orderService.getCurrentCustomerOrders(lang, pageable)));
-    }
 
     @GetMapping("/pharmacy/{pharmacyId}")
     @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
@@ -113,9 +82,11 @@ public class OrderController {
             @PathVariable Long pharmacyId,
             @Parameter(description = "Response language: en or ar", example = "en")
             @RequestParam(defaultValue = "en") String lang,
+            @Parameter(description = "Filter by order status. Default hides PENDING (awaiting payment) and CANCELLED unless chosen.", example = "PREPARING")
+            @RequestParam(required = false) OrderStatus status,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Pharmacy orders fetched", orderService.getPharmacyOrders(pharmacyId, lang, pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Pharmacy orders fetched", orderService.getPharmacyOrders(pharmacyId, lang, status, pageable)));
     }
 
     @GetMapping("/all")
@@ -143,16 +114,18 @@ public class OrderController {
     public ResponseEntity<ApiResponse<PaginatedResponse<OrderResponse>>> getAllOrders(
             @Parameter(description = "Response language: en or ar", example = "en")
             @RequestParam(defaultValue = "en") String lang,
+            @Parameter(description = "Filter by order status. Default hides PENDING (awaiting payment) and CANCELLED unless chosen.", example = "PREPARING")
+            @RequestParam(required = false) OrderStatus status,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Orders fetched", orderService.getAllOrders(lang, pageable)));
+        return ResponseEntity.ok(ApiResponse.success("Orders fetched", orderService.getAllOrders(lang, status, pageable)));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'PHARMACIST', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
     @Operation(
             summary = "Get order by ID",
-            description = "Returns one order only when the current user is its customer owner, the admin pharmacist "
+            description = "Returns one order only when the current user is the admin pharmacist "
                     + "of the pharmacy that received it, or a system user with the ADMIN role.",
             security = @SecurityRequirement(name = "basicAuth")
     )
@@ -188,4 +161,6 @@ public class OrderController {
     ) {
         return ResponseEntity.ok(ApiResponse.success("Order fetched", orderService.getOrderById(id, lang)));
     }
+
+
 }

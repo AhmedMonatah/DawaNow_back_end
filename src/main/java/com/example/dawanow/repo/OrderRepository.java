@@ -1,6 +1,7 @@
 package com.example.dawanow.repo;
 
 import com.example.dawanow.entity.Order;
+import com.example.dawanow.entity.OrderStatus;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,22 +22,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             JOIN FETCH o.pharmacist
             JOIN FETCH o.request
             JOIN FETCH o.offer
-            WHERE o.user.id = :userId
+            JOIN FETCH o.masterOrder
+            WHERE o.id = :id
             """)
-    List<Order> findByUserId(@Param("userId") Long userId);
-
-    @Query("""
-            SELECT DISTINCT o.request.id FROM Order o
-            WHERE o.user.id = :userId
-            ORDER BY o.request.id DESC
-            """)
-    List<Long> findRequestIdsByUserId(@Param("userId") Long userId, Pageable pageable);
-
-    @Query("""
-            SELECT COUNT(DISTINCT o.request.id) FROM Order o
-            WHERE o.user.id = :userId
-            """)
-    long countDistinctRequestIdsByUserId(@Param("userId") Long userId);
+    Optional<Order> findById(@Param("id") Long id);
 
     @Query("""
             SELECT DISTINCT o FROM Order o
@@ -45,10 +34,24 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             JOIN FETCH o.pharmacist
             JOIN FETCH o.request
             JOIN FETCH o.offer
-            WHERE o.user.id = :userId AND o.request.id IN :requestIds
-            ORDER BY o.request.id DESC, o.date DESC
+            JOIN FETCH o.masterOrder
+            WHERE o.masterOrder.id = :masterOrderId
+            ORDER BY o.date DESC, o.id ASC
             """)
-    List<Order> findByUserIdAndRequestIdIn(@Param("userId") Long userId, @Param("requestIds") List<Long> requestIds);
+    List<Order> findByMasterOrderId(@Param("masterOrderId") Long masterOrderId);
+
+    @Query("""
+            SELECT DISTINCT o FROM Order o
+            JOIN FETCH o.user
+            JOIN FETCH o.pharmacy
+            JOIN FETCH o.pharmacist
+            JOIN FETCH o.request
+            JOIN FETCH o.offer
+            JOIN FETCH o.masterOrder
+            WHERE o.masterOrder.id IN :masterOrderIds
+            ORDER BY o.date DESC, o.id ASC
+            """)
+    List<Order> findByMasterOrderIdIn(@Param("masterOrderIds") List<Long> masterOrderIds);
 
     @Query(value = """
             SELECT DISTINCT o FROM Order o
@@ -57,14 +60,56 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             JOIN FETCH o.pharmacist
             JOIN FETCH o.request
             JOIN FETCH o.offer
+            JOIN FETCH o.masterOrder
             WHERE o.pharmacy.id = :pharmacyId
+              AND o.status = :status
+            ORDER BY o.date DESC, o.id ASC
             """,
-            countQuery = "SELECT COUNT(o) FROM Order o WHERE o.pharmacy.id = :pharmacyId")
-    Page<Order> findByPharmacyId(@Param("pharmacyId") Long pharmacyId, Pageable pageable);
+            countQuery = "SELECT COUNT(o) FROM Order o WHERE o.pharmacy.id = :pharmacyId AND o.status = :status")
+    Page<Order> findByPharmacyIdAndStatus(@Param("pharmacyId") Long pharmacyId, @Param("status") OrderStatus status, Pageable pageable);
 
-    boolean existsByOfferId(Long offerId);
+    @Query(value = """
+            SELECT DISTINCT o FROM Order o
+            JOIN FETCH o.user
+            JOIN FETCH o.pharmacy
+            JOIN FETCH o.pharmacist
+            JOIN FETCH o.request
+            JOIN FETCH o.offer
+            JOIN FETCH o.masterOrder
+            WHERE o.pharmacy.id = :pharmacyId
+              AND o.status NOT IN :statuses
+            ORDER BY o.date DESC, o.id ASC
+            """,
+            countQuery = "SELECT COUNT(o) FROM Order o WHERE o.pharmacy.id = :pharmacyId AND o.status NOT IN :statuses")
+    Page<Order> findByPharmacyIdAndStatusNotIn(@Param("pharmacyId") Long pharmacyId, @Param("statuses") List<OrderStatus> statuses, Pageable pageable);
 
-    boolean existsByOfferRequestId(Long requestId);
+    @Query(value = """
+            SELECT DISTINCT o FROM Order o
+            JOIN FETCH o.user
+            JOIN FETCH o.pharmacy
+            JOIN FETCH o.pharmacist
+            JOIN FETCH o.request
+            JOIN FETCH o.offer
+            JOIN FETCH o.masterOrder
+            WHERE o.status = :status
+            ORDER BY o.date DESC, o.id ASC
+            """,
+            countQuery = "SELECT COUNT(o) FROM Order o WHERE o.status = :status")
+    Page<Order> findByStatus(@Param("status") OrderStatus status, Pageable pageable);
+
+    @Query(value = """
+            SELECT DISTINCT o FROM Order o
+            JOIN FETCH o.user
+            JOIN FETCH o.pharmacy
+            JOIN FETCH o.pharmacist
+            JOIN FETCH o.request
+            JOIN FETCH o.offer
+            JOIN FETCH o.masterOrder
+            WHERE o.status NOT IN :statuses
+            ORDER BY o.date DESC, o.id ASC
+            """,
+            countQuery = "SELECT COUNT(o) FROM Order o WHERE o.status NOT IN :statuses")
+    Page<Order> findByStatusNotIn(@Param("statuses") List<OrderStatus> statuses, Pageable pageable);
 
     long countByPharmacyIdAndDateBetween(Long pharmacyId, LocalDateTime start, LocalDateTime end);
 
@@ -75,6 +120,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             JOIN FETCH o.pharmacist
             JOIN FETCH o.request
             JOIN FETCH o.offer
+            JOIN FETCH o.masterOrder
             WHERE o.pharmacy.id = :pharmacyId
               AND o.date BETWEEN :start AND :end
             ORDER BY o.date DESC
@@ -117,5 +163,4 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             Pageable pageable
     );
 
-    Optional<Order> findByPaymentIntentId(String paymentIntentId);
 }

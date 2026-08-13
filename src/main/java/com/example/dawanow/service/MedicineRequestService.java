@@ -3,6 +3,7 @@ package com.example.dawanow.service;
 import com.example.dawanow.dtos.request.CreateMedicineRequestRequest;
 import com.example.dawanow.dtos.response.MedicineRequestItemResponse;
 import com.example.dawanow.dtos.response.MedicineRequestResponse;
+import com.example.dawanow.dtos.response.PharmacyMedicineRequestResponse;
 import com.example.dawanow.dtos.response.MedicineRequestResultItemResponse;
 import com.example.dawanow.dtos.response.MedicineRequestResultResponse;
 import com.example.dawanow.dtos.response.PaginatedResponse;
@@ -115,12 +116,10 @@ public class MedicineRequestService {
             medicineRequest.getItems().add(requestItem);
         }
 
-        medicineRequest.setStatus(RequestStatus.PENDING);
+        medicineRequest.setStatus(RequestStatus.SEARCHING);
         medicineRequestRepository.save(medicineRequest);
 
         assignmentService.assignNearbyPharmacies(medicineRequest);
-
-//        medicineRequest.setStatus(RequestStatus.SEARCHING);
 
         cartService.clearCart();
 
@@ -132,7 +131,9 @@ public class MedicineRequestService {
     }
 
     @Transactional
-    public PaginatedResponse<MedicineRequestResponse> getCurrentPharmacyRequests(String lang, Pageable pageable) {
+    public PaginatedResponse<PharmacyMedicineRequestResponse> getCurrentPharmacyRequests(String lang,
+                                                                                          AssignmentStatus status,
+                                                                                          Pageable pageable) {
         String language = normalizeLanguage(lang);
 
         Pharmacist pharmacist = (Pharmacist) currentUserProvider.get();
@@ -143,8 +144,9 @@ public class MedicineRequestService {
 
         Long pharmacyId = pharmacist.getPharmacy().getId();
 
-        Page<PharmacyAssignment> assignments =
-                pharmacyAssignmentRepository.getPharmacyAssignmentsByPharmacy_Id(pharmacyId, pageable);
+        Page<PharmacyAssignment> assignments = (status == null)
+                ? pharmacyAssignmentRepository.getPharmacyAssignmentsByPharmacy_Id(pharmacyId, pageable)
+                : pharmacyAssignmentRepository.getPharmacyAssignmentsByPharmacy_IdAndStatus(pharmacyId, status, pageable);
 
         List<MedicineRequest> requests = assignments.getContent().stream()
                 .map(PharmacyAssignment::getMedicineRequest)
@@ -152,16 +154,65 @@ public class MedicineRequestService {
         Map<Long, List<MedicineRequestItemResponse>> itemsByRequestId = resolveItems(requests, language);
 
         return PaginatedResponse.from(
-                assignments.map(assignment -> toResponse(assignment.getMedicineRequest(), itemsByRequestId))
+                assignments.map(assignment -> new PharmacyMedicineRequestResponse(
+                        toResponse(assignment.getMedicineRequest(), itemsByRequestId),
+                        assignment.getStatus(),
+                        assignment.getDistanceKm()
+                ))
         );
     }
 
+    @Transactional
     @Scheduled(fixedRate = 60000)
     public void expireRequests() {
-        List<MedicineRequest> medicineRequestList =  medicineRequestRepository.findByStatusAndExpiresAtBefore(RequestStatus.PENDING, LocalDateTime.now());
+        List<MedicineRequest> medicineRequestList =  medicineRequestRepository.findByStatusAndExpiresAtBefore(RequestStatus.SEARCHING, LocalDateTime.now());
         for (MedicineRequest medicineRequest : medicineRequestList) {
             medicineRequest.setStatus(RequestStatus.EXPIRED);
         }
+        List<Long> requestIds = medicineRequestList.stream()
+                .map(MedicineRequest::getId)
+                .toList();
+        expirePendingAssignments(requestIds);
+    }
+
+    /**
+     * Expires the still-pending pharmacy assignments for the given requests.
+     * Assignments with other statuses (e.g. OFFER_CREATED) are left untouched.
+     */
+    @Transactional
+    public void expirePendingAssignments(List<Long> requestIds) {
+        if (requestIds.isEmpty()) {
+            return;
+        }
+        List<PharmacyAssignment> assignments =
+                pharmacyAssignmentRepository.findByMedicineRequest_IdInAndStatus(requestIds, AssignmentStatus.PENDING);
+        for (PharmacyAssignment assignment : assignments) {
+            assignment.setStatus(AssignmentStatus.EXPIRED);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public PharmacyMedicineRequestResponse getCurrentPharmacyRequest(Long requestId, String lang) {
+        String language = normalizeLanguage(lang);
+
+        Pharmacist pharmacist = (Pharmacist) currentUserProvider.get();
+
+        if (pharmacist.getPharmacy() == null) {
+            throw new ResourceNotFoundException("Current pharmacist is not assigned to any pharmacy");
+        }
+
+        PharmacyAssignment assignment = pharmacyAssignmentRepository
+                .findByPharmacyIdAndMedicineRequestId(pharmacist.getPharmacy().getId(), requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medicine request not found"));
+
+        MedicineRequest request = assignment.getMedicineRequest();
+        Map<Long, List<MedicineRequestItemResponse>> itemsByRequestId = resolveItems(List.of(request), language);
+
+        return new PharmacyMedicineRequestResponse(
+                toResponse(request, itemsByRequestId),
+                assignment.getStatus(),
+                assignment.getDistanceKm()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -431,13 +482,7 @@ public class MedicineRequestService {
 
         boolean ownsRequest = currentUser instanceof Customer
                 && medicineRequest.getCustomer().getId().equals(currentUser.getId());
-        boolean pharmacyReceivedRequest = currentUser instanceof Pharmacist pharmacist
-                && pharmacist.getPharmacy() != null
-                && pharmacyAssignmentRepository.existsByMedicineRequest_IdAndPharmacy_Id(
-                        medicineRequest.getId(),
-                        pharmacist.getPharmacy().getId()
-                );
-        if (!isApplicationAdmin(currentUser) && !ownsRequest && !pharmacyReceivedRequest) {
+        if (!isApplicationAdmin(currentUser) && !ownsRequest) {
             throw new AccessDeniedException("You are not allowed to view this medicine request");
         }
 

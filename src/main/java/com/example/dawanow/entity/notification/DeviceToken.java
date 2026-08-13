@@ -101,6 +101,7 @@ public class DeviceToken {
 
     public void touch() {
         this.lastUsedAt = Instant.now();
+        this.active = true;
     }
 
 }

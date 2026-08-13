@@ -1,25 +1,18 @@
 package com.example.dawanow.service;
 
 import com.example.dawanow.dtos.request.ConfirmSelectionRequest;
-import com.example.dawanow.dtos.response.ConfirmationResponse;
-import com.example.dawanow.dtos.response.OrderSummaryResponse;
+import com.example.dawanow.dtos.request.FulfillmentRequest;
+import com.example.dawanow.dtos.response.*;
 import com.example.dawanow.entity.*;
+import com.example.dawanow.entity.notification.Notification;
 import com.example.dawanow.exception.ResourceNotFoundException;
 import com.example.dawanow.factory.NotificationFactory;
-import com.example.dawanow.repo.MedicineRequestRepository;
-import com.example.dawanow.repo.OrderRepository;
-import com.example.dawanow.repo.PharmacyOfferItemRepository;
-import com.example.dawanow.repo.PharmacyOfferRepository;
+import com.example.dawanow.repo.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
@@ -34,15 +27,24 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class MedicineRequestConfirmationService {
 
+
+
+    private static final String DEFAULT_LANG = "en";
+    private static final String ARABIC = "ar";
+
     private final MedicineRequestRepository medicineRequestRepository;
     private final PharmacyOfferRepository pharmacyOfferRepository;
     private final PharmacyOfferItemRepository pharmacyOfferItemRepository;
     private final OrderRepository orderRepository;
+    private final MasterOrderRepository masterOrderRepository;
     private final CurrentUserProvider currentUserProvider;
     private final PharmacySelectionOptimizer selectionOptimizer;
     private final NotificationService notificationService;
     private final NotificationFactory notificationFactory;
     private final RequestResultSseService requestResultSseService;
+    private final ProductRepository productRepository;
+    private final OrderItemRepository orderItemRepository;
+    private final MedicineRequestService medicineRequestService;
 
     @Transactional
     public ConfirmationResponse confirm(Long requestId, ConfirmSelectionRequest selection) {
@@ -51,7 +53,7 @@ public class MedicineRequestConfirmationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Medicine request not found"));
 
         validateRequestCanBeConfirmed(medicineRequest, customer);
-        if (orderRepository.existsByOfferRequestId(requestId)) {
+        if (masterOrderRepository.existsByRequestId(medicineRequest.getId())) {
             throw new IllegalArgumentException("This medicine request has already been confirmed");
         }
 
@@ -80,37 +82,105 @@ public class MedicineRequestConfirmationService {
 
         validateSelectedItems(medicineRequest, selectedOfferItems);
 
+
+
+        MasterOrder masterOrder = new MasterOrder();
+        masterOrder.setUser(customer);
+        masterOrder.setRequest(medicineRequest);
+
+        PaymentMethod paymentMethod = medicineRequest.getPaymentMethod();
+        masterOrder.setPaymentMethod(paymentMethod);
+
+//        if (paymentMethod == PaymentMethod.CARD) {
+//            masterOrder.setPaymentStatus(PaymentStatus.PENDING);
+//            masterOrder.setOrderStatus(OrderStatus.PENDING_PAYMENT);
+//        } else {
+//            masterOrder.setPaymentStatus(null);
+//            masterOrder.setPaymentIntentId(null);
+//            masterOrder.setPaidAt(null);
+//        }
+
+
+
         List<PharmacyOfferItem> optimizedItems = selectionOptimizer.optimize(selectedOfferItems);
-        List<Order> orders = createOrders(medicineRequest, optimizedItems, medicineRequest.getPaymentMethod());
+        List<Order> orders = createOrders(medicineRequest, optimizedItems);
+
+        orders.forEach(masterOrder::addCustomerOrder);
+
+        int pharmacyCount = orders.size();
+        BigDecimal deliveryFee = BigDecimal.valueOf(15L + 5L * pharmacyCount + 10L * (pharmacyCount / 3));
+        masterOrder.setDeliveryFee(deliveryFee);
+        masterOrder.setTotalPrice(orders.stream().map(Order::getTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add).add(deliveryFee));
+
         updateOfferStatuses(medicineRequest.getId(), optimizedItems);
+
+        masterOrderRepository.save(masterOrder);
+
         medicineRequest.setStatus(RequestStatus.COMPLETED);
 
+        medicineRequestService.expirePendingAssignments(List.of(medicineRequest.getId()));
 
-
-        orderRepository.saveAll(orders);
-        orderRepository.flush();
-
-        orders.forEach(order -> notificationService.sendToPharmacy(
-                notificationFactory.orderCreated(order),
-                order.getId()
-        ));
+//        orders.forEach(order -> notificationService.sendToPharmacy(
+//                notificationFactory.orderCreated(order),
+//                order.getId()
+//        ));
 
         requestResultSseService.closeForRequest(requestId);
 
 
-        List<OrderSummaryResponse> summaries = orders.stream()
+
+        Map<Long, List<OrderItemResponse>> itemsByOrderId = resolveItems(orders, DEFAULT_LANG);
+
+
+        List<OrderDraftResponse> orderDraftResponses = orders.stream()
                 .sorted(Comparator.comparing(order -> order.getPharmacy().getId()))
-                .map(this::toSummary)
+                .map(order -> toOrderDraftResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of())))
                 .toList();
-        return new ConfirmationResponse(medicineRequest.getId(), summaries);
+        return new ConfirmationResponse(medicineRequest.getId(), orderDraftResponses, masterOrder.getDeliveryFee(),masterOrder.getTotalPrice());
     }
+
+    @Transactional
+    public FulfillmentConfirmationResponse confirm(Long requestId, FulfillmentRequest request){
+        Customer customer = requireCurrentCustomer();
+        MedicineRequest medicineRequest = medicineRequestRepository.findDetailedById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medicine request not found"));
+        MasterOrder masterOrder = masterOrderRepository.findByRequestId(medicineRequest.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Master order not found"));
+
+        validateMasterOrderNotExpired(masterOrder);
+
+        masterOrder.setFulfillmentMethod(request.fulfillmentMethod());
+        if(masterOrder.getPaymentMethod() == PaymentMethod.CARD){
+            masterOrder.setPaymentStatus(PaymentStatus.PENDING);
+            masterOrder.setOrderStatus(OrderStatus.PENDING_PAYMENT);
+            masterOrder.setPaymentExpiresAt(LocalDateTime.now().plusMinutes(15));
+        }else{
+            masterOrder.setPaymentStatus(null);
+            masterOrder.setPaymentIntentId(null);
+            masterOrder.setPaidAt(null);
+            masterOrder.applyOrderStatus(OrderStatus.PREPARING);
+            List<Order> orders = masterOrder.getOrders();
+            orders.forEach(order -> {
+                notificationService.sendToPharmacy(
+                        notificationFactory.orderCreated(order),
+                        order.getPharmacy().getId()
+                );});
+        }
+        masterOrderRepository.save(masterOrder);
+        return new FulfillmentConfirmationResponse(masterOrder.getId(), masterOrder.getOrderStatus(), masterOrder.getPaymentMethod(),
+                masterOrder.getPaymentStatus());
+        }
+
+
+
 
     private void validateRequestCanBeConfirmed(MedicineRequest medicineRequest, Customer customer) {
         if (!medicineRequest.getCustomer().getId().equals(customer.getId())) {
             throw new AccessDeniedException("You can only confirm your own medicine request");
         }
-        if (medicineRequest.getStatus() != RequestStatus.PENDING) {
-            throw new IllegalArgumentException("Only pending medicine requests can be confirmed");
+        if (medicineRequest.getStatus() != RequestStatus.SEARCHING) {
+            throw new IllegalArgumentException("Only searching medicine requests can be confirmed");
         }
     }
 
@@ -191,9 +261,7 @@ public class MedicineRequestConfirmationService {
 
     private List<Order> createOrders(
             MedicineRequest medicineRequest,
-            List<PharmacyOfferItem> selectedItems,
-            PaymentMethod paymentMethod
-    ) {
+            List<PharmacyOfferItem> selectedItems) {
         Map<Long, List<PharmacyOfferItem>> itemsByPharmacy = new LinkedHashMap<>();
         for (PharmacyOfferItem selectedItem : selectedItems) {
             Long pharmacyId = selectedItem.getOffer().getPharmacy().getId();
@@ -213,17 +281,9 @@ public class MedicineRequestConfirmationService {
             order.setOffer(offer);
             order.setDeliveryLatitude(medicineRequest.getDeliveryLatitude());
             order.setDeliveryLongitude(medicineRequest.getDeliveryLongitude());
-            order.setStatus(OrderStatus.PENDING);
             order.setDate(LocalDateTime.now());
             order.setRequest(medicineRequest);
-            order.setPaymentMethod(paymentMethod);
-            if (paymentMethod == PaymentMethod.CARD) {
-                order.setPaymentStatus(PaymentStatus.UNPAID);
-            } else {
-                order.setPaymentStatus(null);
-                order.setPaymentIntentId(null);
-                order.setPaidAt(null);
-            }
+
 
             BigDecimal total = BigDecimal.ZERO;
             for (PharmacyOfferItem selectedItem : pharmacyItems) {
@@ -283,5 +343,69 @@ public class MedicineRequestConfirmationService {
             throw new AccessDeniedException("Only customers can confirm medicine requests");
         }
         return customer;
+    }
+
+    private OrderDraftResponse toOrderDraftResponse(Order order, List<OrderItemResponse> items) {
+
+        Pharmacy pharmacy = order.getPharmacy();
+
+        return new OrderDraftResponse(
+                order.getId(),
+                pharmacy.getId(),
+                pharmacy.getName(),
+                pharmacy.getLatitude(),
+                pharmacy.getLongitude(),
+                items
+        );
+    }
+    private OfferedItemResponse toOfferedItemResponse(OrderItem item) {
+        return new OfferedItemResponse(
+                item.getId(),
+                item.getProduct().getId(),
+                item.getProduct().getName()
+        );
+    }
+
+    private void validateMasterOrderNotExpired(MasterOrder masterOrder) {
+
+        if (masterOrder.getPaymentExpiresAt() != null
+                && masterOrder.getPaymentExpiresAt().isBefore(LocalDateTime.now())) {
+
+            throw new IllegalStateException(
+                    "The order confirmation period has expired"
+            );
+        }
+    }
+
+    private Map<Long, List<OrderItemResponse>> resolveItems(List<Order> orders, String lang) {
+        List<Long> orderIds = orders.stream()
+                .map(Order::getId)
+                .toList();
+        if (orderIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<OrderItemResponse> items = orderItemRepository.findByOrderIdIn(orderIds);
+
+        List<Long> productIds = items.stream()
+                .map(OrderItemResponse::getProductId)
+                .filter(id -> id != null)   // deleted products have null productId
+                .distinct()
+                .toList();
+
+        if (!productIds.isEmpty()) {
+            Map<Long, ProductSummaryResponse> productsById = productRepository
+                    .findAllLocalized(productIds, lang, DEFAULT_LANG)
+                    .stream()
+                    .collect(Collectors.toMap(ProductSummaryResponse::id, Function.identity()));
+
+            items.forEach(item -> item.setProduct(productsById.get(item.getProductId())));
+        }
+
+        return items.stream().collect(Collectors.groupingBy(
+                OrderItemResponse::getOrderId,
+                LinkedHashMap::new,
+                Collectors.toList()
+        ));
     }
 }
