@@ -150,6 +150,29 @@ class AiChatModelClientTest {
     }
 
     @Test
+    void routeParsesFlatPharmacyAnalyticsPlan() {
+        nextResponse.set("{\"output_text\":\"{\\\"intent\\\":\\\"PHARMACY_ANALYTICS\\\","
+                + "\\\"analyticsMetric\\\":\\\"EMPLOYEE_PERFORMANCE\\\","
+                + "\\\"analyticsScope\\\":\\\"EMPLOYEE\\\","
+                + "\\\"analyticsPeriod\\\":\\\"CUSTOM_RANGE\\\","
+                + "\\\"analyticsStartDate\\\":\\\"2026-08-01\\\","
+                + "\\\"analyticsEndDate\\\":\\\"2026-08-10\\\","
+                + "\\\"analyticsEmployeeName\\\":\\\"Ahmed Ali\\\","
+                + "\\\"analyticsComparison\\\":\\\"PREVIOUS_PERIOD\\\"}\"}");
+
+        RouterResult result = client.route(
+                "system", List.of(new GatewayMessage("user", "Ahmed from 1 to 10 August")), 300);
+
+        assertThat(result.intent()).isEqualTo(ChatIntent.PHARMACY_ANALYTICS);
+        assertThat(result.analytics().metric()).isEqualTo("EMPLOYEE_PERFORMANCE");
+        assertThat(result.analytics().period()).isEqualTo("CUSTOM_RANGE");
+        assertThat(result.analytics().startDate()).isEqualTo("2026-08-01");
+        assertThat(result.analytics().endDate()).isEqualTo("2026-08-10");
+        assertThat(result.analytics().employeeName()).isEqualTo("Ahmed Ali");
+        assertThat(result.analytics().comparison()).isEqualTo("PREVIOUS_PERIOD");
+    }
+
+    @Test
     void generateGroundedParsesReplyAndProductIds() {
         nextResponse.set("{\"output_text\":\"{\\\"reply\\\":\\\"**Panadol** relieves pain.\\\","
                 + "\\\"productIds\\\":[5,9]}\"}");

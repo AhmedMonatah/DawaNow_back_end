@@ -12,5 +12,6 @@ public enum ChatIntent {
     CREATE_REQUEST,
     SET_REMINDER,
     PHARMACIST_PERFORMANCE,
+    PHARMACY_ANALYTICS,
     OTHER
 }
