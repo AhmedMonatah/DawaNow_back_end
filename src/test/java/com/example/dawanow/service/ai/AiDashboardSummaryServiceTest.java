@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -13,12 +14,18 @@ import com.example.dawanow.config.AiChatProperties;
 import com.example.dawanow.dtos.response.AiDashboardSummaryResponse;
 import com.example.dawanow.dtos.response.MostSoldProductResponse;
 import com.example.dawanow.dtos.response.PharmacyDashboardResponse;
+import com.example.dawanow.entity.ChatPerformanceDirection;
+import com.example.dawanow.entity.ChatPerformanceMetric;
 import com.example.dawanow.entity.DashboardPeriod;
 import com.example.dawanow.entity.User;
+import com.example.dawanow.repo.OrderRepository;
+import com.example.dawanow.repo.PharmacyOfferRepository;
 import com.example.dawanow.service.CurrentUserProvider;
 import com.example.dawanow.service.PharmacyDashboardService;
 import com.example.dawanow.service.ai.chat.AiChatModelClient;
 import com.example.dawanow.service.ai.chat.AiChatPromptFactory;
+import com.example.dawanow.service.ai.chat.PharmacistPerformanceService;
+import com.example.dawanow.service.ai.chat.PharmacistPerformanceService.PerformanceResult;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +45,12 @@ class AiDashboardSummaryServiceTest {
     private AiChatModelClient modelClient;
     @Mock
     private CurrentUserProvider currentUserProvider;
+    @Mock
+    private PharmacistPerformanceService pharmacistPerformanceService;
+    @Mock
+    private OrderRepository orderRepository;
+    @Mock
+    private PharmacyOfferRepository pharmacyOfferRepository;
 
     private AiDashboardSummaryService service;
 
@@ -45,13 +58,26 @@ class AiDashboardSummaryServiceTest {
     void setUp() {
         service = new AiDashboardSummaryService(
                 dashboardService, modelClient, new AiChatPromptFactory(),
-                currentUserProvider, new AiChatProperties());
+                currentUserProvider, new AiChatProperties(), pharmacistPerformanceService,
+                orderRepository, pharmacyOfferRepository);
+        lenient().when(pharmacistPerformanceService.rank(any(), any(), any(), any()))
+                .thenReturn(new PerformanceResult(
+                        true,
+                        ChatPerformanceMetric.BOTH,
+                        DashboardPeriod.LAST_WEEK,
+                        ChatPerformanceDirection.TOP,
+                        10L,
+                        List.of()));
     }
 
     @Test
     void metricsReachTheModelCompactlyAndSummaryIsReturned() {
         stubUser(1L);
         when(dashboardService.getDashboard(DashboardPeriod.LAST_WEEK)).thenReturn(dashboard());
+        when(orderRepository.findMaximumTotalPriceByPharmacyIdAndDateBetween(any(), any(), any()))
+                .thenReturn(new BigDecimal("500.00"));
+        when(pharmacyOfferRepository.countByPharmacyIdAndStatusInAndCreatedAtBetween(
+                any(), any(), any(), any())).thenReturn(9L);
         ArgumentCaptor<List<AiChatModelClient.GatewayMessage>> captor =
                 ArgumentCaptor.forClass(List.class);
         when(modelClient.generateText(anyString(), captor.capture(), anyInt()))
@@ -59,7 +85,12 @@ class AiDashboardSummaryServiceTest {
 
         AiDashboardSummaryResponse response = service.getSummary(DashboardPeriod.LAST_WEEK, "en");
 
-        assertThat(response.summary()).isEqualTo("A good week.");
+        assertThat(response.summary())
+                .startsWith("A good week.")
+                .contains("Requests received: **30**")
+                .contains("Offer acceptance: **50.0%**")
+                .contains("Biggest order: **EGP 500.00**")
+                .contains("average order value: **EGP 125.04**");
         assertThat(response.cached()).isFalse();
         String metrics = captor.getValue().getFirst().content();
         assertThat(metrics).contains("totalRevenueEGP: 1500.50")
