@@ -221,7 +221,8 @@ public class AiChatModelClient {
                     List.of(),
                     parsePerformanceMetric(lenientStringField(content, "performanceMetric")),
                     parseDashboardPeriod(lenientStringField(content, "performancePeriod")),
-                    parsePerformanceDirection(lenientStringField(content, "performanceDirection"))
+                    parsePerformanceDirection(lenientStringField(content, "performanceDirection")),
+                    lenientAnalyticsSpec(content)
             );
         }
         return new RouterResult(
@@ -235,8 +236,39 @@ public class AiChatModelClient {
                 textList(payload, "categoryNames"),
                 parsePerformanceMetric(text(payload, "performanceMetric")),
                 parseDashboardPeriod(text(payload, "performancePeriod")),
-                parsePerformanceDirection(text(payload, "performanceDirection"))
+                parsePerformanceDirection(text(payload, "performanceDirection")),
+                analyticsSpec(payload)
         );
+    }
+
+    private AnalyticsSpec analyticsSpec(JsonNode payload) {
+        AnalyticsSpec spec = new AnalyticsSpec(
+                text(payload, "analyticsMetric"),
+                text(payload, "analyticsScope"),
+                text(payload, "analyticsPeriod"),
+                text(payload, "analyticsStartDate"),
+                text(payload, "analyticsEndDate"),
+                text(payload, "analyticsEmployeeName"),
+                text(payload, "analyticsProductName"),
+                text(payload, "analyticsDirection"),
+                text(payload, "analyticsComparison")
+        );
+        return spec.isEmpty() ? null : spec;
+    }
+
+    private AnalyticsSpec lenientAnalyticsSpec(String content) {
+        AnalyticsSpec spec = new AnalyticsSpec(
+                lenientStringField(content, "analyticsMetric"),
+                lenientStringField(content, "analyticsScope"),
+                lenientStringField(content, "analyticsPeriod"),
+                lenientStringField(content, "analyticsStartDate"),
+                lenientStringField(content, "analyticsEndDate"),
+                lenientStringField(content, "analyticsEmployeeName"),
+                lenientStringField(content, "analyticsProductName"),
+                lenientStringField(content, "analyticsDirection"),
+                lenientStringField(content, "analyticsComparison")
+        );
+        return spec.isEmpty() ? null : spec;
     }
 
     /**
@@ -570,8 +602,28 @@ public class AiChatModelClient {
             List<String> categoryNames,
             ChatPerformanceMetric performanceMetric,
             DashboardPeriod performancePeriod,
-            ChatPerformanceDirection performanceDirection
+            ChatPerformanceDirection performanceDirection,
+            AnalyticsSpec analytics
     ) {
+
+        /** Backward-compatible constructor for existing callers and tests. */
+        public RouterResult(
+                ChatIntent intent,
+                String reply,
+                String searchQuery,
+                List<String> doctorSpecializations,
+                List<String> emergencyServices,
+                Integer quantity,
+                ReminderSpec reminder,
+                List<String> categoryNames,
+                ChatPerformanceMetric performanceMetric,
+                DashboardPeriod performancePeriod,
+                ChatPerformanceDirection performanceDirection
+        ) {
+            this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
+                    quantity, reminder, categoryNames, performanceMetric, performancePeriod,
+                    performanceDirection, null);
+        }
 
         public RouterResult(
                 ChatIntent intent,
@@ -586,7 +638,7 @@ public class AiChatModelClient {
                 DashboardPeriod performancePeriod
         ) {
             this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
-                    quantity, reminder, categoryNames, performanceMetric, performancePeriod, null);
+                    quantity, reminder, categoryNames, performanceMetric, performancePeriod, null, null);
         }
 
         /** Convenience for the common intents that carry no cart, reminder or category data. */
@@ -598,7 +650,7 @@ public class AiChatModelClient {
                 List<String> emergencyServices
         ) {
             this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
-                    null, null, List.of(), null, null, null);
+                    null, null, List.of(), null, null, null, null);
         }
 
         /** Convenience for cart/reminder intents without category data. */
@@ -612,7 +664,7 @@ public class AiChatModelClient {
                 ReminderSpec reminder
         ) {
             this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
-                    quantity, reminder, List.of(), null, null, null);
+                    quantity, reminder, List.of(), null, null, null, null);
         }
 
         /** Convenience for category intents without pharmacist-performance data. */
@@ -627,7 +679,27 @@ public class AiChatModelClient {
                 List<String> categoryNames
         ) {
             this(intent, reply, searchQuery, doctorSpecializations, emergencyServices,
-                    quantity, reminder, categoryNames, null, null);
+                    quantity, reminder, categoryNames, null, null, null, null);
+        }
+    }
+
+    /** Flat, allow-listed analytics plan. It contains no table, column or SQL fields. */
+    public record AnalyticsSpec(
+            String metric,
+            String scope,
+            String period,
+            String startDate,
+            String endDate,
+            String employeeName,
+            String productName,
+            String direction,
+            String comparison
+    ) {
+        private boolean isEmpty() {
+            return java.util.stream.Stream.of(
+                            metric, scope, period, startDate, endDate,
+                            employeeName, productName, direction, comparison)
+                    .noneMatch(value -> value != null && !value.isBlank());
         }
     }
 
