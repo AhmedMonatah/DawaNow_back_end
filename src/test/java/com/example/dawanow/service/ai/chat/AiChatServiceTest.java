@@ -17,6 +17,7 @@ import com.example.dawanow.controller.CatalogAiController.ProductMatchResponse;
 import com.example.dawanow.dtos.ai.ExtractedPrescription;
 import com.example.dawanow.dtos.request.ChatMessageRequest;
 import com.example.dawanow.dtos.response.ChatHistoryResponse;
+import com.example.dawanow.dtos.response.ChatAnalyticsResponse;
 import com.example.dawanow.dtos.response.ChatMessageResponse;
 import com.example.dawanow.dtos.response.EmergencyNumberResponse;
 import com.example.dawanow.dtos.response.ProductResponse;
@@ -56,6 +57,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
@@ -96,6 +98,8 @@ class AiChatServiceTest {
     @Mock
     private PharmacistPerformanceService pharmacistPerformanceService;
     @Mock
+    private PharmacyAnalyticsService pharmacyAnalyticsService;
+    @Mock
     private PharmacistRepository pharmacistRepository;
     @Mock
     private MultipartFile image;
@@ -129,6 +133,7 @@ class AiChatServiceTest {
                 categoryRepository,
                 categoryTranslationRepository,
                 pharmacistPerformanceService,
+                pharmacyAnalyticsService,
                 pharmacistRepository
         );
 
@@ -148,6 +153,32 @@ class AiChatServiceTest {
         assertThat(response.intent()).isEqualTo("GREETING");
         assertThat(response.products()).isEmpty();
         verifyNoInteractions(catalogRagService);
+    }
+
+    @Test
+    void analyticsPresetBypassesGatewayRouter() {
+        Pharmacist pharmacist = new Pharmacist();
+        pharmacist.setId(1L);
+        pharmacist.setRole(UserRole.PHARMACIST);
+        stubCurrentUser(pharmacist);
+        stubConversation();
+        stubMessageSaves();
+        ChatAnalyticsResponse analytics = new ChatAnalyticsResponse(
+                1, "SELF", "THIS_MONTH", LocalDateTime.of(2026, 8, 1, 0, 0),
+                LocalDateTime.of(2026, 8, 15, 0, 0), List.of(), List.of(), List.of(),
+                List.of(), List.of());
+        when(pharmacyAnalyticsService.analyze(
+                pharmacist, "SELF_MONTH_ORDERS", null))
+                .thenReturn(new PharmacyAnalyticsService.AnalyticsResult(
+                        PharmacyAnalyticsService.AnalyticsResult.Status.ALLOWED,
+                        null, 3L, "SELF", analytics));
+
+        ChatMessageResponse response = service.sendMessage(
+                new ChatMessageRequest("Show my orders", "SELF_MONTH_ORDERS"));
+
+        assertThat(response.intent()).isEqualTo("PHARMACY_ANALYTICS");
+        assertThat(response.analytics()).isEqualTo(analytics);
+        verifyNoInteractions(modelClient);
     }
 
     @Test

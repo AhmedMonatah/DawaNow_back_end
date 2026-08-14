@@ -7,6 +7,7 @@ import com.example.dawanow.dtos.ai.ExtractedMedicine;
 import com.example.dawanow.dtos.ai.ExtractedPrescription;
 import com.example.dawanow.dtos.request.ChatMessageRequest;
 import com.example.dawanow.dtos.response.ChatActionResponse;
+import com.example.dawanow.dtos.response.ChatAnalyticsResponse;
 import com.example.dawanow.dtos.response.ChatCategoryResponse;
 import com.example.dawanow.dtos.response.ChatHistoryMessageResponse;
 import com.example.dawanow.dtos.response.ChatHistoryResponse;
@@ -46,7 +47,11 @@ import com.example.dawanow.service.ai.chat.AiChatModelClient.ReminderSpec;
 import com.example.dawanow.service.ai.chat.AiChatModelClient.RouterResult;
 import com.example.dawanow.service.ai.chat.ChatCartActionService.CartActionOutcome;
 import com.example.dawanow.service.ai.chat.PharmacistPerformanceService.PerformanceResult;
+import com.example.dawanow.service.ai.chat.PharmacyAnalyticsService.AnalyticsResult;
 import com.example.dawanow.service.ai.rag.CatalogRagService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -93,6 +98,9 @@ public class AiChatService {
     private static final int HISTORY_ENTRY_MAX_CHARS = 300;
     private static final String ARABIC = "ar";
     private static final String IMAGE_MARKER = "[image]";
+    private static final ObjectMapper SNAPSHOT_MAPPER = JsonMapper.builder()
+            .findAndAddModules()
+            .build();
     private static final Map<String, String> EMERGENCY_NUMBERS = Map.of(
             "AMBULANCE", "123",
             "POLICE", "122",
@@ -128,6 +136,7 @@ public class AiChatService {
     private final CategoryRepository categoryRepository;
     private final CategoryTranslationRepository categoryTranslationRepository;
     private final PharmacistPerformanceService pharmacistPerformanceService;
+    private final PharmacyAnalyticsService pharmacyAnalyticsService;
     private final PharmacistRepository pharmacistRepository;
 
     public ChatMessageResponse sendMessage(ChatMessageRequest request) {
@@ -161,6 +170,13 @@ public class AiChatService {
             return respondWithRedFlag(conversation, language);
         }
 
+        // Allow-listed quick actions are already a complete plan, so they do not
+        // depend on the student gateway being online.
+        if (StringUtils.hasText(request.analyticsPreset())) {
+            return respondWithPharmacyAnalytics(
+                    conversation, user, language, request.analyticsPreset(), null);
+        }
+
         RouterResult router = modelClient.route(
                 promptFactory.routerSystemPrompt(user.getRole(), storeCategoryNames()),
                 messages,
@@ -170,6 +186,10 @@ public class AiChatService {
 
         if (intent == ChatIntent.PHARMACIST_PERFORMANCE) {
             return respondWithPharmacistPerformance(conversation, user, language, router);
+        }
+        if (intent == ChatIntent.PHARMACY_ANALYTICS) {
+            return respondWithPharmacyAnalytics(
+                    conversation, user, language, null, router.analytics());
         }
         if (intent == ChatIntent.CATEGORY_BROWSE) {
             return respondWithCategories(conversation, language, router);
@@ -277,9 +297,34 @@ public class AiChatService {
                 conversation.getId(),
                 messages.stream()
                         .map(message -> toHistoryResponse(
-                                message, english, pharmacists, currentAdminPharmacyId))
+                                message, english, pharmacists, currentAdminPharmacyId, user))
                         .toList()
         );
+    }
+
+    private ChatMessageResponse respondWithPharmacyAnalytics(
+            ChatConversation conversation,
+            User user,
+            String language,
+            String preset,
+            AiChatModelClient.AnalyticsSpec spec
+    ) {
+        AnalyticsResult result = pharmacyAnalyticsService.analyze(user, preset, spec);
+        String reply = switch (result.status()) {
+            case DENIED -> promptFactory.pharmacyAnalyticsDeniedReply(language);
+            case CLARIFICATION -> promptFactory.pharmacyAnalyticsClarificationReply(
+                    language, result.clarification());
+            case ALLOWED -> promptFactory.pharmacyAnalyticsReply(language, result.analytics());
+        };
+        ChatAnalyticsResponse analytics = result.status() == AnalyticsResult.Status.ALLOWED
+                ? result.analytics()
+                : null;
+        ChatMessage saved = saveAnalyticsMessage(
+                conversation, reply, analytics, result.pharmacyId(), result.scope());
+        return new ChatMessageResponse(
+                conversation.getId(), saved.getId(), ChatIntent.PHARMACY_ANALYTICS.name(), reply,
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                null, null, null, analytics);
     }
 
     /**
@@ -925,6 +970,30 @@ public class AiChatService {
         return messageRepository.save(message);
     }
 
+    private ChatMessage saveAnalyticsMessage(
+            ChatConversation conversation,
+            String content,
+            ChatAnalyticsResponse analytics,
+            Long pharmacyId,
+            String scope
+    ) {
+        ChatMessage message = new ChatMessage();
+        message.setConversation(conversation);
+        message.setRole(ChatMessageRole.ASSISTANT);
+        message.setContent(content);
+        message.setIntent(ChatIntent.PHARMACY_ANALYTICS);
+        if (analytics != null && pharmacyId != null && StringUtils.hasText(scope)) {
+            try {
+                message.setAnalyticsSnapshot(SNAPSHOT_MAPPER.writeValueAsString(analytics));
+            } catch (JsonProcessingException exception) {
+                throw new IllegalStateException("Could not serialize analytics snapshot", exception);
+            }
+            message.setAnalyticsPharmacyId(pharmacyId);
+            message.setAnalyticsScope(scope);
+        }
+        return messageRepository.save(message);
+    }
+
     private void touch(ChatConversation conversation, String content) {
         if (!StringUtils.hasText(conversation.getTitle())) {
             conversation.setTitle(truncate(content));
@@ -1022,7 +1091,8 @@ public class AiChatService {
                 pharmacistRankings,
                 disclaimer,
                 action,
-                reminder
+                reminder,
+                null
         );
     }
 
@@ -1030,14 +1100,21 @@ public class AiChatService {
             ChatMessage message,
             Map<Long, ProductResponse> english,
             Map<Long, Pharmacist> pharmacists,
-            Long currentAdminPharmacyId
+            Long currentAdminPharmacyId,
+            User user
     ) {
         String language = languageDetector.detect(message.getContent());
         boolean protectedPerformance = hasProtectedPerformanceSnapshot(message);
         boolean canViewPerformance = isPerformanceSnapshotAuthorized(message, currentAdminPharmacyId);
-        String content = protectedPerformance && !canViewPerformance
-                ? promptFactory.pharmacistPerformanceDeniedReply(language)
-                : message.getContent();
+        boolean protectedAnalytics = StringUtils.hasText(message.getAnalyticsSnapshot());
+        boolean canViewAnalytics = !protectedAnalytics || pharmacyAnalyticsService.canViewSnapshot(
+                user, message.getAnalyticsPharmacyId(), message.getAnalyticsScope());
+        String content = message.getContent();
+        if (protectedPerformance && !canViewPerformance) {
+            content = promptFactory.pharmacistPerformanceDeniedReply(language);
+        } else if (protectedAnalytics && !canViewAnalytics) {
+            content = promptFactory.pharmacyAnalyticsDeniedReply(language);
+        }
         return new ChatHistoryMessageResponse(
                 message.getId(),
                 message.getRole().name(),
@@ -1049,8 +1126,21 @@ public class AiChatService {
                 emergencyNumbers(splitValues(message.getEmergencyServices())),
                 resolveHistoryCategories(message.getCategoryIds(), language),
                 canViewPerformance ? resolveHistoryRankings(message, pharmacists) : List.of(),
+                canViewAnalytics ? readAnalyticsSnapshot(message.getAnalyticsSnapshot()) : null,
                 message.getCreatedAt()
         );
+    }
+
+    private ChatAnalyticsResponse readAnalyticsSnapshot(String snapshot) {
+        if (!StringUtils.hasText(snapshot)) {
+            return null;
+        }
+        try {
+            return SNAPSHOT_MAPPER.readValue(snapshot, ChatAnalyticsResponse.class);
+        } catch (JsonProcessingException exception) {
+            log.warn("Could not read analytics snapshot from chat history: {}", exception.getMessage());
+            return null;
+        }
     }
 
     private List<ChatCategoryResponse> resolveHistoryCategories(String idsCsv, String language) {

@@ -82,6 +82,18 @@ public class ChatMessage {
     @Column(name = "successful_order_ranking_entries", length = 255)
     private String successfulOrderRankingEntries;
 
+    /** Versioned structured analytics snapshot; database statistics are never regenerated for history. */
+    @Column(name = "analytics_snapshot", columnDefinition = "TEXT")
+    private String analyticsSnapshot;
+
+    /** Pharmacy that owned the data when the analytics snapshot was generated. */
+    @Column(name = "analytics_pharmacy_id")
+    private Long analyticsPharmacyId;
+
+    /** PHARMACY/TEAM/EMPLOYEE/PRODUCT snapshots are admin-only; SELF remains caller-only. */
+    @Column(name = "analytics_scope", length = 16)
+    private String analyticsScope;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

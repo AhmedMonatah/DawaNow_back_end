@@ -14,6 +14,23 @@ public record ChatHistoryMessageResponse(
         List<EmergencyNumberResponse> emergencyNumbers,
         List<ChatCategoryResponse> categories,
         List<PharmacistRankingResponse> pharmacistRankings,
+        ChatAnalyticsResponse analytics,
         LocalDateTime createdAt
 ) {
+    public ChatHistoryMessageResponse(
+            Long id,
+            String role,
+            String content,
+            String intent,
+            List<ProductResponse> products,
+            List<ProductResponse> alternatives,
+            List<String> doctorSpecializations,
+            List<EmergencyNumberResponse> emergencyNumbers,
+            List<ChatCategoryResponse> categories,
+            List<PharmacistRankingResponse> pharmacistRankings,
+            LocalDateTime createdAt
+    ) {
+        this(id, role, content, intent, products, alternatives, doctorSpecializations,
+                emergencyNumbers, categories, pharmacistRankings, null, createdAt);
+    }
 }

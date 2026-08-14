@@ -1,11 +1,16 @@
 package com.example.dawanow.service.ai.chat;
 
+import com.example.dawanow.dtos.response.ChatAnalyticsResponse;
+import com.example.dawanow.dtos.response.ChatAnalyticsResponse.Metric;
 import com.example.dawanow.dtos.response.PharmacistPerformanceEntryResponse;
 import com.example.dawanow.dtos.response.PharmacistRankingResponse;
 import com.example.dawanow.entity.ChatPerformanceDirection;
 import com.example.dawanow.entity.ChatPerformanceMetric;
 import com.example.dawanow.entity.DashboardPeriod;
 import com.example.dawanow.entity.UserRole;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -62,7 +67,7 @@ public class AiChatPromptFactory {
             """ + SAFETY_RULES + """
 
             Classify the user's last message and return ONLY compact JSON in this exact shape:
-            {"intent":"GREETING|MEDICINE_REQUEST|SYMPTOM_ADVICE|DOCTOR_SPECIALIZATION|EMERGENCY|MEDICINE_USAGE|CATEGORY_BROWSE|ADD_TO_CART|CREATE_REQUEST|SET_REMINDER|PHARMACIST_PERFORMANCE|OTHER","reply":"","searchQuery":"","quantity":0,"reminderMedicine":"","reminderTimesPerDay":0,"reminderTimes":[],"reminderDurationDays":0,"doctorSpecializations":[],"emergencyServices":[],"categoryNames":[],"performanceMetric":"","performancePeriod":"","performanceDirection":""}
+            {"intent":"GREETING|MEDICINE_REQUEST|SYMPTOM_ADVICE|DOCTOR_SPECIALIZATION|EMERGENCY|MEDICINE_USAGE|CATEGORY_BROWSE|ADD_TO_CART|CREATE_REQUEST|SET_REMINDER|PHARMACIST_PERFORMANCE|PHARMACY_ANALYTICS|OTHER","reply":"","searchQuery":"","quantity":0,"reminderMedicine":"","reminderTimesPerDay":0,"reminderTimes":[],"reminderDurationDays":0,"doctorSpecializations":[],"emergencyServices":[],"categoryNames":[],"performanceMetric":"","performancePeriod":"","performanceDirection":"","analyticsMetric":"","analyticsScope":"","analyticsPeriod":"","analyticsStartDate":"","analyticsEndDate":"","analyticsEmployeeName":"","analyticsProductName":"","analyticsDirection":"","analyticsComparison":""}
             Use 0 or "" for any field that does not apply.
 
             STORE CATEGORIES (the only valid values for "categoryNames", copy them EXACTLY as written,
@@ -119,6 +124,24 @@ public class AiChatPromptFactory {
               BOTTOM for least/worst in "performanceDirection"; use "" when no direction was stated. Leave
               "reply" empty. This intent may be classified for any account because authorization is enforced
               deterministically by the backend.
+            - PHARMACY_ANALYTICS: a pharmacist asks for numeric business facts about their pharmacy or their
+              own work: requests, offers, offer acceptance, generated/delivered/cancelled orders, order value,
+              delivered revenue, average/largest order, employee performance, or top sold products. Examples:
+              "how many requests did we get this month?", "biggest order on 2026-08-03", "Ahmed's offers
+              from 2026-07-01 to 2026-07-15", "my orders today", "مين أفضل موظف الشهر ده؟",
+              "نسبة قبول العروض من يوم 1 ليوم 10". Leave reply empty and fill only these allow-listed fields:
+              analyticsMetric = OVERVIEW|REQUESTS_RECEIVED|OFFERS_CREATED|OFFER_ACCEPTANCE_RATE|
+              ORDERS_GENERATED|DELIVERED_ORDERS|CANCELLED_ORDERS|TOTAL_ORDER_VALUE|DELIVERED_REVENUE|
+              AVERAGE_ORDER_VALUE|LARGEST_ORDER|TOP_EMPLOYEE|EMPLOYEE_PERFORMANCE|TOP_PRODUCTS;
+              analyticsScope = PHARMACY|SELF|EMPLOYEE|TEAM|PRODUCT; analyticsPeriod = TODAY|YESTERDAY|
+              THIS_WEEK|LAST_WEEK|THIS_MONTH|LAST_MONTH|THIS_YEAR|LAST_YEAR|EXACT_DATE|CUSTOM_RANGE|ALL_TIME;
+              analyticsStartDate and analyticsEndDate are ISO yyyy-MM-dd (for EXACT_DATE put the date in
+              analyticsStartDate); copy a named employee/product into its matching field; analyticsDirection
+              is TOP or BOTTOM. Set analyticsComparison to PREVIOUS_PERIOD only when the user asks to compare
+              with the preceding equivalent period; otherwise use "". If no time was stated, use THIS_MONTH.
+              Do not invent a missing month/year:
+              leave the date fields empty so the backend asks a clarification. Never produce SQL, table names,
+              column names, ids, or calculated statistics.
             - OTHER: anything not covered above. This includes questions about the conversation itself, such
               as the user asking what they told you earlier — answer those directly from the history in
               "reply". Only steer the user back to health topics when the message is genuinely unrelated to
@@ -304,6 +327,115 @@ public class AiChatPromptFactory {
         return "ar".equals(language)
                 ? "تقارير أداء فريق الصيدلية متاحة **لمسؤول الصيدلية فقط**."
                 : "Pharmacy team performance reports are available to the **pharmacy admin only**.";
+    }
+
+    public String pharmacyAnalyticsDeniedReply(String language) {
+        return "ar".equals(language)
+                ? "تقدر تشوف **تحليلاتك الشخصية فقط**. تحليلات الصيدلية والفريق متاحة لمسؤول الصيدلية."
+                : "You can view **your own analytics only**. Pharmacy and team analytics are available "
+                        + "to the pharmacy admin.";
+    }
+
+    public String pharmacyAnalyticsClarificationReply(String language, String reason) {
+        if ("ar".equals(language)) {
+            return switch (reason == null ? "" : reason) {
+                case "EMPLOYEE_NOT_FOUND" -> "مش لاقي الموظف ده ضمن فريق الصيدلية الحالي. اكتب الاسم كاملًا.";
+                case "EMPLOYEE_NAME_AMBIGUOUS" -> "فيه أكتر من موظف بالاسم ده. اكتب الاسم كاملًا عشان أحدده.";
+                case "DATE_REQUIRED", "RANGE_START_REQUIRED", "RANGE_END_REQUIRED",
+                     "INVALID_DATE_RANGE" -> "حدد التاريخ كاملًا بصيغة واضحة، مثال: **2026-08-01 إلى 2026-08-10**.";
+                default -> "محتاج تحدد نوع الإحصائية أو الفترة بشكل أوضح.";
+            };
+        }
+        return switch (reason == null ? "" : reason) {
+            case "EMPLOYEE_NOT_FOUND" -> "I couldn't find that employee in the current pharmacy team. "
+                    + "Please provide their full name.";
+            case "EMPLOYEE_NAME_AMBIGUOUS" -> "More than one employee matches that name. Please provide "
+                    + "the full name.";
+            case "DATE_REQUIRED", "RANGE_START_REQUIRED", "RANGE_END_REQUIRED",
+                 "INVALID_DATE_RANGE" -> "Please provide a complete date range, for example "
+                    + "**2026-08-01 to 2026-08-10**.";
+            default -> "Please specify the analytics metric or time period more clearly.";
+        };
+    }
+
+    public String pharmacyAnalyticsReply(String language, ChatAnalyticsResponse analytics) {
+        StringBuilder reply = new StringBuilder();
+        DateTimeFormatter date = DateTimeFormatter.ISO_LOCAL_DATE;
+        if ("ar".equals(language)) {
+            reply.append("دي النتائج للفترة من **")
+                    .append(date.format(analytics.start()))
+                    .append("** إلى **")
+                    .append(date.format(analytics.end().minusNanos(1)))
+                    .append("**:");
+        } else {
+            reply.append("Here are the results from **")
+                    .append(date.format(analytics.start()))
+                    .append("** to **")
+                    .append(date.format(analytics.end().minusNanos(1)))
+                    .append("**:");
+        }
+        for (Metric metric : analytics.metrics()) {
+            reply.append("\n- **")
+                    .append(analyticsMetricLabel(language, metric.key()))
+                    .append(":** ")
+                    .append(formatAnalyticsValue(metric));
+        }
+        if (!analytics.rankings().isEmpty()) {
+            var top = analytics.rankings().getFirst();
+            reply.append("\n- **")
+                    .append("ar".equals(language) ? "أفضل موظف:" : "Top employee:")
+                    .append("** ").append(top.firstName()).append(' ').append(top.lastName())
+                    .append(" — **").append(top.count()).append("**");
+        }
+        if (!analytics.orderHighlights().isEmpty()) {
+            var order = analytics.orderHighlights().getFirst();
+            reply.append("\n- **")
+                    .append("ar".equals(language) ? "أكبر طلب:" : "Largest order:")
+                    .append("** #").append(order.orderId()).append(" — ")
+                    .append(order.totalPrice().setScale(2, RoundingMode.HALF_UP)).append(" EGP");
+        }
+        if (!analytics.topProducts().isEmpty()) {
+            var product = analytics.topProducts().getFirst();
+            reply.append("\n- **")
+                    .append("ar".equals(language) ? "المنتج الأعلى مبيعًا:" : "Top-selling product:")
+                    .append("** ").append(product.productName())
+                    .append(" — **").append(product.quantity()).append("**");
+        }
+        if (analytics.metrics().isEmpty() && analytics.rankings().isEmpty()
+                && analytics.orderHighlights().isEmpty() && analytics.topProducts().isEmpty()) {
+            reply.append("\n").append("ar".equals(language)
+                    ? "مفيش نشاط مسجل يطابق السؤال في الفترة دي."
+                    : "No matching activity was recorded in this period.");
+        }
+        return reply.toString();
+    }
+
+    private String formatAnalyticsValue(Metric metric) {
+        BigDecimal value = metric.value() == null ? BigDecimal.ZERO : metric.value();
+        return switch (metric.unit()) {
+            case "EGP" -> value.setScale(2, RoundingMode.HALF_UP) + " EGP";
+            case "PERCENT" -> value.setScale(1, RoundingMode.HALF_UP) + "%";
+            default -> value.setScale(0, RoundingMode.HALF_UP).toPlainString();
+        };
+    }
+
+    private String analyticsMetricLabel(String language, String key) {
+        boolean ar = "ar".equals(language);
+        return switch (key) {
+            case "REQUESTS_RECEIVED" -> ar ? "الطلبات المستلمة" : "Requests received";
+            case "REQUESTS_COVERED" -> ar ? "الطلبات التي تم الرد عليها بعرض" : "Requests covered";
+            case "REQUEST_COVERAGE_RATE" -> ar ? "نسبة تغطية الطلبات" : "Request coverage";
+            case "OFFERS_CREATED" -> ar ? "العروض المنشأة" : "Offers created";
+            case "ACCEPTED_OFFERS" -> ar ? "العروض المقبولة" : "Accepted offers";
+            case "OFFER_ACCEPTANCE_RATE" -> ar ? "نسبة قبول العروض" : "Offer acceptance";
+            case "ORDERS_GENERATED" -> ar ? "الطلبات الناتجة" : "Orders generated";
+            case "DELIVERED_ORDERS" -> ar ? "الطلبات المسلمة" : "Delivered orders";
+            case "CANCELLED_ORDERS" -> ar ? "الطلبات الملغاة" : "Cancelled orders";
+            case "TOTAL_ORDER_VALUE" -> ar ? "إجمالي قيمة الطلبات" : "Total order value";
+            case "DELIVERED_REVENUE" -> ar ? "إيراد الطلبات المسلمة" : "Delivered revenue";
+            case "AVERAGE_ORDER_VALUE" -> ar ? "متوسط قيمة الطلب" : "Average order value";
+            default -> key.replace('_', ' ').toLowerCase();
+        };
     }
 
     public String pharmacistPerformanceNoActivityReply(
