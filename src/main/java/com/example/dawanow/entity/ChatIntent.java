@@ -1,0 +1,17 @@
+package com.example.dawanow.entity;
+
+public enum ChatIntent {
+    GREETING,
+    MEDICINE_REQUEST,
+    SYMPTOM_ADVICE,
+    DOCTOR_SPECIALIZATION,
+    EMERGENCY,
+    MEDICINE_USAGE,
+    CATEGORY_BROWSE,
+    ADD_TO_CART,
+    CREATE_REQUEST,
+    SET_REMINDER,
+    PHARMACIST_PERFORMANCE,
+    PHARMACY_ANALYTICS,
+    OTHER
+}
