@@ -25,6 +25,9 @@ public class JwtService {
     @Value("${jwt.refresh-expiration}")
     private long refreshExpiration;
 
+    @Value("${jwt.reset-expiration}")
+    private long resetExpiration;
+
     private SecretKey signingKey;
 
     @PostConstruct
@@ -75,6 +78,17 @@ public class JwtService {
                 .claim("role", role)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + refreshExpiration))
+                .signWith(signingKey)
+                .compact();
+    }
+
+    public String generateResetToken(String email) {
+        return Jwts.builder()
+                .subject(email)
+                .claim("type", "RESET")
+                .claim("purpose", "PASSWORD_RESET")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + resetExpiration))
                 .signWith(signingKey)
                 .compact();
     }
@@ -151,6 +165,10 @@ public class JwtService {
 
     public boolean isRefreshToken(String token) {
         return "REFRESH".equals(extractTokenType(token));
+    }
+
+    public boolean isResetToken(String token) {
+        return "RESET".equals(extractTokenType(token));
     }
 
 

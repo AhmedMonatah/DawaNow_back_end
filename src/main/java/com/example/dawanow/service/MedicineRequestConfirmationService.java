@@ -87,6 +87,7 @@ public class MedicineRequestConfirmationService {
         MasterOrder masterOrder = new MasterOrder();
         masterOrder.setUser(customer);
         masterOrder.setRequest(medicineRequest);
+        masterOrder.setFulfillmentMethod(FulfillmentMethod.DELIVERY);
 
         PaymentMethod paymentMethod = medicineRequest.getPaymentMethod();
         masterOrder.setPaymentMethod(paymentMethod);
@@ -151,6 +152,11 @@ public class MedicineRequestConfirmationService {
         validateMasterOrderNotExpired(masterOrder);
 
         masterOrder.setFulfillmentMethod(request.fulfillmentMethod());
+        if (request.fulfillmentMethod() == FulfillmentMethod.PICKUP) {
+            masterOrder.setTotalPrice(masterOrder.getTotalPrice().subtract(masterOrder.getDeliveryFee()));
+            masterOrder.setDeliveryFee(BigDecimal.ZERO);
+        }
+
         if(masterOrder.getPaymentMethod() == PaymentMethod.CARD){
             masterOrder.setPaymentStatus(PaymentStatus.PENDING);
             masterOrder.setOrderStatus(OrderStatus.PENDING_PAYMENT);

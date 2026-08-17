@@ -84,6 +84,9 @@ public class MedicineRequestService {
         if (cart.getItems().isEmpty()) {
             throw new IllegalArgumentException("Cart is empty");
         }
+        if (medicineRequestRepository.existsByCustomerIdAndStatus(customer.getId(), RequestStatus.SEARCHING)) {
+            throw new IllegalArgumentException("You already have an active request in SEARCHING status");
+        }
         MedicineRequest medicineRequest = new MedicineRequest();
 
         medicineRequest.setCustomer(customer);

@@ -3,6 +3,7 @@ package com.example.dawanow.controller;
 import com.example.dawanow.dtos.request.*;
 import com.example.dawanow.dtos.response.ApiResponse;
 import com.example.dawanow.dtos.response.AuthResponse;
+import com.example.dawanow.dtos.response.ResetTokenResponse;
 import com.example.dawanow.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -155,5 +156,86 @@ public class AuthController {
     ) {
         authService.logout(request);
         return ResponseEntity.ok(ApiResponse.success("Logged out successfully"));
+    }
+
+    @PostMapping("/forgot-password")
+    @Operation(
+            summary = "Request password reset OTP",
+            description = "Public endpoint. Sends a 6-digit OTP to the user's email if an account exists. Always returns the same generic message to prevent user enumeration."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Request accepted; OTP sent if the account exists"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Request validation failed"
+            )
+    })
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "The email of the account requesting a password reset",
+                    required = true
+            )
+            @Valid @RequestBody ForgotPasswordRequest request
+    ) {
+        authService.forgotPassword(request.email());
+        return ResponseEntity.ok(ApiResponse.success("If an account exists, an OTP has been sent to your email."));
+    }
+
+    @PostMapping("/reset-password/verify")
+    @Operation(
+            summary = "Verify password-reset OTP",
+            description = "Public endpoint. Validates the 6-digit OTP and returns a short-lived, password-reset-scoped token."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "OTP valid; reset token returned"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid or expired OTP"
+            )
+    })
+    public ResponseEntity<ApiResponse<ResetTokenResponse>> verifyResetOtp(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Email and the matching 6-digit OTP code",
+                    required = true
+            )
+            @Valid @RequestBody VerifyResetOtpRequest request
+    ) {
+        ResetTokenResponse response = authService.verifyResetOtp(request.email(), request.otpCode());
+        return ResponseEntity.ok(ApiResponse.success("OTP verified successfully", response));
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(
+            summary = "Reset password",
+            description = "Public endpoint. Sets a new password using a valid reset token and revokes all existing sessions."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    useReturnTypeSchema = true,
+                    description = "Password reset successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid/expired reset token or new password same as current"
+            )
+    })
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "The reset token and the new password",
+                    required = true
+            )
+            @Valid @RequestBody ResetPasswordRequest request
+    ) {
+        authService.resetPassword(request.resetToken(), request.newPassword());
+        return ResponseEntity.ok(ApiResponse.success("Password reset successfully"));
     }
 }
