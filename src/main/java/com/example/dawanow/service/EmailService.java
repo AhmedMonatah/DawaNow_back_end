@@ -42,4 +42,26 @@ public class EmailService {
             throw new EmailSendingException("Failed to send email verification code");
         }
     }
+
+    @Async
+    public void sendPasswordResetEmail(String toEmail, String name, String otp) {
+        try {
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, "utf-8");
+
+            String htmlMsg = "<h3>Hello " + name + ",</h3>"
+                    + "<p>We received a request to reset your DawaNow password. Use the code below:</p>"
+                    + "<h2 style='color:#2b6cb0; letter-spacing: 2px;'>" + otp + "</h2>"
+                    + "<p>This code expires in 5 minutes. If you didn't request this, you can ignore this email.</p>";
+
+            helper.setText(htmlMsg, true);
+            helper.setTo(toEmail);
+            helper.setSubject("DawaNow - Password Reset");
+            helper.setFrom(from);
+
+            mailSender.send(mimeMessage);
+        } catch (MessagingException e) {
+            throw new EmailSendingException("Failed to send password reset email");
+        }
+    }
 }

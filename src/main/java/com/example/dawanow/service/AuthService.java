@@ -3,6 +3,7 @@ package com.example.dawanow.service;
 import com.example.dawanow.dtos.request.*;
 import com.example.dawanow.dtos.response.ApiResponse;
 import com.example.dawanow.dtos.response.AuthResponse;
+import com.example.dawanow.dtos.response.ResetTokenResponse;
 import com.example.dawanow.dtos.response.UserResponse;
 import com.example.dawanow.entity.*;
 import com.example.dawanow.exception.ResourceAlreadyExistsException;
@@ -11,6 +12,7 @@ import com.example.dawanow.mapper.UserMapper;
 import com.example.dawanow.repo.PharmacistPresenceRepository;
 import com.example.dawanow.repo.UserRepository;
 import com.example.dawanow.repo.UserTokenRepository;
+import io.jsonwebtoken.JwtException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -18,6 +20,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -41,6 +44,8 @@ public class AuthService {
 
     private final Map<String, RegisterRequest> pendingRegistrations =
             new ConcurrentHashMap<>();
+
+    private static final long RESET_TOKEN_TTL_SECONDS = 600;
 
 
     public AuthService(AuthenticationManager authenticationManager, OtpService otpService, EmailService emailService, PasswordEncoder passwordEncoder, JwtService jwtService, UserMapper userMapper, UserRepository userRepository, UserTokenRepository userTokenRepository, PharmacistPresenceRepository pharmacistPresenceRepository) {
@@ -81,6 +86,51 @@ public class AuthService {
 
         userTokenRepository.delete(userToken);
         return new ApiResponse<>(true, "Logout successful", null);
+    }
+
+    public ApiResponse<Void> forgotPassword(String email) {
+        User user = userRepository.findByEmail(email);
+        if (user != null) {
+            String otpCode = otpService.generateOtp(email);
+            emailService.sendPasswordResetEmail(email, user.getFirstName(), otpCode);
+        }
+        return new ApiResponse<>(true, "If an account exists, an OTP has been sent to your email.", null);
+    }
+
+    public ResetTokenResponse verifyResetOtp(String email, String otpCode) {
+        if (!otpService.validateOtp(email, otpCode)) {
+            throw new IllegalArgumentException("Invalid or expired OTP");
+        }
+        String resetToken = jwtService.generateResetToken(email);
+        return new ResetTokenResponse(resetToken, RESET_TOKEN_TTL_SECONDS);
+    }
+
+    @Transactional
+    public ApiResponse<Void> resetPassword(String resetToken, String newPassword) {
+        try {
+            if (!jwtService.isResetToken(resetToken) || !jwtService.validateJwtToken(resetToken)) {
+                throw new IllegalArgumentException("Invalid or expired reset token");
+            }
+        } catch (JwtException e) {
+            throw new IllegalArgumentException("Invalid or expired reset token");
+        }
+
+        String email = jwtService.extractUsername(resetToken);
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new ResourceNotFoundException("User not found");
+        }
+
+        if (passwordEncoder.matches(newPassword, user.getPassword())) {
+            throw new IllegalArgumentException("New password must be different from the current password");
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        userTokenRepository.deleteByUser(user);
+
+        return new ApiResponse<>(true, "Password reset successfully. Please log in again.", null);
     }
 
     public AuthResponse verify(VerifyRequest request) {

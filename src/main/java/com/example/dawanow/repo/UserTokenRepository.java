@@ -1,5 +1,6 @@
 package com.example.dawanow.repo;
 
+import com.example.dawanow.entity.User;
 import com.example.dawanow.entity.UserToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -15,5 +16,7 @@ JOIN FETCH ut.user
 WHERE ut.refreshToken = :token
 """)
     Optional<UserToken> findByRefreshToken(@Param("token")String refreshToken);
+
+    void deleteByUser(User user);
 
 }
