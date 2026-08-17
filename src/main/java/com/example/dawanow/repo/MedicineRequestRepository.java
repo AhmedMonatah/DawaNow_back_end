@@ -29,4 +29,6 @@ public interface MedicineRequestRepository extends JpaRepository<MedicineRequest
     @EntityGraph(attributePaths = {"customer", "items", "items.product"})
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<MedicineRequest> findDetailedById(Long id);
+
+    Boolean existsByCustomerIdAndStatus(Long customerId, RequestStatus status);
 }
