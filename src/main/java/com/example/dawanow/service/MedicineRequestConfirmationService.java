@@ -87,7 +87,7 @@ public class MedicineRequestConfirmationService {
         MasterOrder masterOrder = new MasterOrder();
         masterOrder.setUser(customer);
         masterOrder.setRequest(medicineRequest);
-        masterOrder.setFulfillmentMethod(FulfillmentMethod.DELIVERY);
+//        masterOrder.setFulfillmentMethod(FulfillmentMethod.DELIVERY);
 
         PaymentMethod paymentMethod = medicineRequest.getPaymentMethod();
         masterOrder.setPaymentMethod(paymentMethod);
